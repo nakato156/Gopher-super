@@ -1,4 +1,4 @@
-package similarity
+package cosine
 
 import (
 	"fmt"

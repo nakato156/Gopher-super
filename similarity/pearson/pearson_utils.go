@@ -1,4 +1,4 @@
-package main
+package pearson
 
 import (
 	"math"
@@ -17,7 +17,7 @@ func calculateMean(data []float64) float64 {
 }
 
 // Calcular la desviación estándar de un vector
-func calculateStandardDeviation(data []float64, mean float64) float64 {
+func CalculateStandardDeviation(data []float64, mean float64) float64 {
 	if len(data) == 0 {
 		return 0
 	}
@@ -100,7 +100,7 @@ func PearsonCorrelationWithChannels(pairs [][]float64) []float64 {
 }
 
 // Función auxiliar para crear pares de vectores de prueba
-func createTestVectors() [][]float64 {
+func CreateTestVectors() [][]float64 {
 	return [][]float64{
 		// Correlación fuerte positiva (~0.8)
 		{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},

@@ -1,3 +1,4 @@
+// similarity/helpers.go
 package similarity
 
 import (
@@ -7,7 +8,6 @@ import (
 )
 
 // BatchCollector genérico
-
 type BatchCollector[T any] struct {
 	In       <-chan T
 	Out      chan<- []T
@@ -81,10 +81,8 @@ func (bc *BatchCollector[T]) Run(ctx context.Context) {
 }
 
 // Servicio Jaccard concurrente con batches
-/////////////////////////////
-
 type Row struct {
-	Set []uint32 // único + ordenado
+	Set []uint32
 }
 
 type Matrix struct {
@@ -92,17 +90,9 @@ type Matrix struct {
 }
 
 type Request struct {
-	A     []uint32       // vector A único + ordenado
+	A     []uint32
 	Reply chan []float64 // similitudes A vs todas las filas de M
 	Ctx   context.Context
-}
-
-type Service struct {
-	M        *Matrix
-	In       chan Request   // llegan requests individuales
-	OutBatch chan []Request // batches del BatchCollector
-	Workers  int            // tamaño del pool
-	Block    int            // tamaño del bloque de filas de M por tarea
 }
 
 func CreateRandomFPMatrix(n, d int) [][]float64 {
@@ -110,7 +100,7 @@ func CreateRandomFPMatrix(n, d int) [][]float64 {
 	for i := 0; i < n; i++ {
 		M[i] = make([]float64, d)
 		for j := 0; j < d; j++ {
-			M[i][j] = rand.Float64() // 0.124721  0.124722
+			M[i][j] = rand.Float64()
 		}
 	}
 	return M

@@ -1,6 +1,7 @@
-package similarity
+package jaccard
 
 import (
+	"algsim/similarity"
 	"context"
 	"fmt"
 	"math/rand"
@@ -244,7 +245,7 @@ func jaccardSorted(Auniq, Buniq []uint32) float64 {
 	return float64(inter) / float64(union)
 }
 
-func NewService(M *Matrix, workers, block, maxBatch int, dur time.Duration) *Service {
+func NewService(M *similarity.Matrix, workers, block, maxBatch int, dur time.Duration) *similarity.Service {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	if workers <= 0 {
 		workers = 3 * runtime.NumCPU()
@@ -252,122 +253,30 @@ func NewService(M *Matrix, workers, block, maxBatch int, dur time.Duration) *Ser
 	if block <= 0 {
 		block = 32
 	}
-	in := make(chan Request, 8192)
-	out := make(chan []Request, 256)
-	bc := NewBatchCollector[Request](in, out, maxBatch, dur)
-	s := &Service{M: M, In: in, OutBatch: out, Workers: workers, Block: block}
+	in := make(chan similarity.Request, 8192)
+	out := make(chan []similarity.Request, 256)
+	bc := similarity.NewBatchCollector[similarity.Request](in, out, maxBatch, dur)
+	s := &similarity.Service{M: M, In: in, OutBatch: out, Workers: workers, Block: block}
 	go bc.Run(context.Background())
-	go s.loopBatches()
+	go s.LoopBatches(func(batch []similarity.Request) {
+		s.ProcessBatch(batch, func(req similarity.Request, row similarity.Row) float64 {
+			return jaccardSorted(req.A, row.Set)
+		})
+	})
 	return s
 }
 
-// el caller manda A crudo
-// se copia, ordena y deduplica
-func (s *Service) Submit(ctx context.Context, A []uint32) ([]float64, bool) {
-	cpy := make([]uint32, len(A))
-	copy(cpy, A)
-	Auniq := uniqueSorted(cpy)
-	rep := make(chan []float64, 1)
-	req := Request{A: Auniq, Reply: rep, Ctx: ctx}
-	select {
-	case s.In <- req:
-	case <-ctx.Done():
-		return nil, false
-	}
-	select {
-	case res := <-rep:
-		return res, true
-	case <-ctx.Done():
-		return nil, false
-	}
-}
-
-func (s *Service) loopBatches() {
-	for batch := range s.OutBatch {
-		s.processBatch(batch)
-	}
-}
-
-func (s *Service) processBatch(batch []Request) {
-	if len(batch) == 0 {
-		return
-	}
-	rows := s.M.Rows
-	outs := make([][]float64, len(batch))
-	for i := range batch {
-		outs[i] = make([]float64, len(rows))
-	}
-
-	// tareas por bloque de filas (mejor localidad)
-	// Cada worker toma un bloque [lo,hi) de filas y, para cada request del batch,
-	// calcula outs[i][r]
-	// Así, la fila r se lee una sola vez para todos los A del batch
-	type task struct {
-		lo int
-		hi int
-	}
-	jobs := make(chan task, s.Workers*32)
-
-	var wg sync.WaitGroup
-	wg.Add(s.Workers)
-	for w := 0; w < s.Workers; w++ {
-		go func() {
-			defer wg.Done()
-			for t := range jobs {
-				for r := t.lo; r < t.hi; r++ {
-					rowSet := rows[r].Set
-					for i := range batch {
-						select {
-						case <-batch[i].Ctx.Done():
-							continue
-						default:
-						}
-						outs[i][r] = jaccardSorted(batch[i].A, rowSet)
-					}
-				}
-			}
-		}()
-	}
-
-	blk := s.Block
-	if blk < 16 {
-		blk = 16
-	}
-	if blk > len(rows) {
-		blk = len(rows)
-	}
-	for start := 0; start < len(rows); start += blk {
-		end := start + blk
-		if end > len(rows) {
-			end = len(rows)
-		}
-		jobs <- task{lo: start, hi: end}
-	}
-	close(jobs)
-	wg.Wait()
-
-	// Responder a cada request
-	for i, req := range batch {
-		select {
-		case <-req.Ctx.Done():
-		default:
-			req.Reply <- outs[i]
-		}
-		close(req.Reply)
-	}
-}
-
-func BuildMatrix(nRows, rowSize, universe int) *Matrix {
-	rows := make([]Row, nRows)
+func BuildMatrix(nRows, rowSize, universe int) *similarity.Matrix {
+	rows := make([]similarity.Row, nRows)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for i := 0; i < nRows; i++ {
 		tmp := make([]uint32, rowSize)
 		for j := 0; j < rowSize; j++ {
 			tmp[j] = uint32(rng.Intn(universe))
 		}
-		rows[i] = Row{Set: uniqueSorted(tmp)}
+		rows[i] = similarity.Row{Set: uniqueSorted(tmp)}
 	}
-	return &Matrix{Rows: rows}
+	return &similarity.Matrix{Rows: rows}
 }
 
 func BuildAVector(rowSize int) *[]uint32 {
@@ -379,7 +288,7 @@ func BuildAVector(rowSize int) *[]uint32 {
 	return &A
 }
 
-func TestJaccardCon(M *Matrix, A []uint32, batch int, workers int, nRequests int) {
+func TestJaccardCon(M *similarity.Matrix, A []uint32, batch int, workers int, nRequests int) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	if workers <= 0 {
 		workers = runtime.NumCPU()

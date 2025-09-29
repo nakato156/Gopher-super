@@ -1,11 +1,12 @@
-package similarity
+package jaccard
 
 import (
+	"algsim/similarity"
 	"fmt"
 	"time"
 )
 
-func TestJaccardSeq(A []uint32, B *Matrix) []float64 {
+func TestJaccardSeq(A []uint32, B *similarity.Matrix) []float64 {
 	start := time.Now()
 	if B == nil {
 		return nil

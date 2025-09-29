@@ -1,24 +1,30 @@
-package main
+package pearson
 
 import "fmt"
 
-// Función de prueba para el algoritmo secuencial de correlación
-func testSequential() {
+// Función de prueba para el algoritmo concurrente de correlación
+func TestConcurrent() {
 	// Crear vectores de prueba
-	testVectors := createTestVectors()
+	testVectors := CreateTestVectors()
 
-	fmt.Println("=== Algoritmo de Correlación de Pearson Secuencial ===")
-	fmt.Println("Vector X\t\tVector Y\t\tCorrelación")
-	fmt.Println("--------------------------------------------------------")
+	fmt.Println("=== Algoritmo de Correlación de Pearson Concurrente ===")
+	fmt.Println("Procesando múltiples pares de vectores en paralelo...")
+	fmt.Println()
+
+	// Procesar todos los pares de vectores concurrentemente
+	results := PearsonCorrelationWithChannels(testVectors)
+
+	fmt.Println("Resultados:")
+	fmt.Println("Par\t\tVector X\t\tVector Y\t\tCorrelación")
+	fmt.Println("----------------------------------------------------------------")
 
 	for i, pair := range testVectors {
 		mid := len(pair) / 2
 		x := pair[:mid]
 		y := pair[mid:]
+		correlation := results[i]
 
-		correlation := PearsonCorrelationSequential(x, y)
-
-		fmt.Printf("Vector %d:\n", i+1)
+		fmt.Printf("Par %d:\n", i+1)
 		fmt.Printf("  X: %v\n", x)
 		fmt.Printf("  Y: %v\n", y)
 		fmt.Printf("  Correlación: %.4f\n", correlation)
@@ -39,4 +45,4 @@ func testSequential() {
 	}
 }
 
-// Función de prueba para el algoritmo secuencial de correlación
+// Función de prueba para el algoritmo concurrente de correlación

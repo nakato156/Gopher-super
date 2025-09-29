@@ -1,6 +1,7 @@
-package similarity
+package cosine
 
 import (
+	"algsim/similarity"
 	"context"
 	"fmt"
 	"math/rand"
@@ -24,7 +25,7 @@ func CosineWrapper(Mnorm [][]float64, batchSize int, timeout time.Duration) *Cos
 	out := make(chan []Query, 128)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	collector := NewBatchCollector(in, out, batchSize, timeout)
+	collector := similarity.NewBatchCollector(in, out, batchSize, timeout)
 	go collector.Run(ctx)
 
 	// Un solo procesador de lotes que usa todos los cores adentro
