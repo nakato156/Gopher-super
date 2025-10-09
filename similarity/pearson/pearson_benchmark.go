@@ -1,15 +1,16 @@
-package main
+package pearson
 
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"time"
 )
 
 // Función de benchmark comparativo para correlación de Pearson
-func benchmarkAlgorithms() {
+func BenchmarkAlgorithms(rows, rowSize int) (time.Duration, time.Duration) {
 	// Crear vectores de prueba más grandes para el benchmark
-	testVectors := createLargeTestVectors()
+	testVectors := createLargeTestVectors(rows, rowSize)
 
 	fmt.Println("=== Benchmark de Algoritmos de Correlación de Pearson ===")
 	fmt.Printf("Procesando %d pares de vectores...\n", len(testVectors))
@@ -81,26 +82,31 @@ func benchmarkAlgorithms() {
 	fmt.Printf("Correlación promedio: %.4f\n", calculateMean(seqResults))
 	fmt.Printf("Correlación máxima: %.4f\n", findMax(seqResults))
 	fmt.Printf("Correlación mínima: %.4f\n", findMin(seqResults))
+
+	return seqTime, chanTime
 }
 
 // Función auxiliar para crear vectores de prueba más grandes
-func createLargeTestVectors() [][]float64 {
-	return [][]float64{
-		// Vectores con correlación perfecta positiva
-		{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20},
-		// Vectores con correlación perfecta negativa
-		{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1},
-		// Vectores con correlación moderada
-		{1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20},
-		// Vectores con correlación débil
-		{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-		// Vectores con correlación negativa moderada
-		{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2},
-		// Vectores aleatorios
-		{1, 4, 7, 2, 9, 3, 6, 8, 5, 10, 5, 2, 8, 1, 9, 4, 7, 3, 6, 10},
-		{2, 5, 8, 3, 10, 4, 7, 9, 6, 11, 6, 3, 9, 2, 10, 5, 8, 4, 7, 11},
-		{3, 6, 9, 4, 11, 5, 8, 10, 7, 12, 7, 4, 10, 3, 11, 6, 9, 5, 8, 12},
+func createLargeTestVectors(rows, rowSize int) [][]float64 {
+	if rows <= 0 || rowSize <= 0 {
+		return nil
 	}
+
+	pairLength := rowSize * 2
+	vectors := make([][]float64, rows)
+	data := make([]float64, rows*pairLength)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for i := range data {
+		data[i] = rng.Float64()*2 - 1
+	}
+
+	for i := 0; i < rows; i++ {
+		start := i * pairLength
+		vectors[i] = data[start : start+pairLength]
+	}
+
+	return vectors
 }
 
 // Funciones auxiliares para estadísticas
