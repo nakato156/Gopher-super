@@ -11,20 +11,21 @@
   },
   "min_common_games": 1,
   "min_similarity_score": 0.005,
-  "k": 10,
+  "k": 20,
   "n": 5,
   "weights": {
-    "accuracy": {
-      "time": 0.1,
-      "pref": 0.1,
-      "recency": 0.1,
-      "alpha": 0.7
+    "similarity": {
+      "common_games": 0.5,
+      "playtime": 0.3,
+      "reviews": 0.10,
+      "preferences": 0.10
     },
     "confidence": {
-      "coverage": 0.4,
-      "agreement": 0.3,
-      "strength": 0.2,
-      "quality": 0.1
+      "similarity": 0.4,
+      "sample": 0.25,
+      "playtime": 0.2,
+      "recency": 0.1,
+      "consensus": 0.05
     }
   }
 }

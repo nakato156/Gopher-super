@@ -26,25 +26,26 @@ type SamplingConfig struct {
 	RandomSeed int `json:"random_seed"` // Semilla para reproducibilidad
 }
 
-// AccuracyWeights define los pesos para el cálculo de accuracy
-type AccuracyWeights struct {
-	Time    float64 `json:"time"`
-	Pref    float64 `json:"pref"`
-	Recency float64 `json:"recency"`
-	Alpha   float64 `json:"alpha"`
+// SimilarityWeights define los pesos para el cálculo de similaridad entre usuarios
+type SimilarityWeights struct {
+	CommonGames float64 `json:"common_games"`
+	Playtime    float64 `json:"playtime"`
+	Reviews     float64 `json:"reviews"`
+	Prefs       float64 `json:"preferences"`
 }
 
 // ConfidenceWeights define los pesos para el cálculo de confianza
 type ConfidenceWeights struct {
-	Coverage  float64 `json:"coverage"`
-	Agreement float64 `json:"agreement"`
-	Strength  float64 `json:"strength"`
-	Quality   float64 `json:"quality"`
+	Similarity float64 `json:"similarity"`
+	Sample     float64 `json:"sample"`
+	Playtime   float64 `json:"playtime"`
+	Recency    float64 `json:"recency"`
+	Consensus  float64 `json:"consensus"`
 }
 
 // WeightsConfig agrupa los pesos del sistema
 type WeightsConfig struct {
-	Accuracy   AccuracyWeights   `json:"accuracy"`
+	Similarity SimilarityWeights `json:"similarity"`
 	Confidence ConfidenceWeights `json:"confidence"`
 }
 
@@ -84,17 +85,18 @@ func DefaultConfig() SystemConfig {
 		K:                  10,
 		N:                  5,
 		Weights: WeightsConfig{
-			Accuracy: AccuracyWeights{
-				Time:    0.4,
-				Pref:    0.3,
-				Recency: 0.3,
-				Alpha:   1.2,
+			Similarity: SimilarityWeights{
+				CommonGames: 0.50,
+				Playtime:    0.30,
+				Reviews:     0.15,
+				Prefs:       0.05,
 			},
 			Confidence: ConfidenceWeights{
-				Coverage:  0.4,
-				Agreement: 0.3,
-				Strength:  0.2,
-				Quality:   0.1,
+				Similarity: 0.40,
+				Sample:     0.25,
+				Playtime:   0.20,
+				Recency:    0.10,
+				Consensus:  0.05,
 			},
 		},
 	}
@@ -123,12 +125,15 @@ func LoadConfig(configFile string) (SystemConfig, error) {
 
 	// Backfill de pesos si no están presentes en el JSON
 	def := DefaultConfig()
-	if config.Weights.Accuracy.Time == 0 && config.Weights.Accuracy.Pref == 0 &&
-		config.Weights.Accuracy.Recency == 0 && config.Weights.Accuracy.Alpha == 0 {
-		config.Weights.Accuracy = def.Weights.Accuracy
+	// Backfill para Similarity
+	if config.Weights.Similarity.CommonGames == 0 && config.Weights.Similarity.Playtime == 0 &&
+		config.Weights.Similarity.Reviews == 0 && config.Weights.Similarity.Prefs == 0 {
+		config.Weights.Similarity = def.Weights.Similarity
 	}
-	if config.Weights.Confidence.Coverage == 0 && config.Weights.Confidence.Agreement == 0 &&
-		config.Weights.Confidence.Strength == 0 && config.Weights.Confidence.Quality == 0 {
+	// Backfill para Confidence
+	if config.Weights.Confidence.Similarity == 0 && config.Weights.Confidence.Sample == 0 &&
+		config.Weights.Confidence.Playtime == 0 && config.Weights.Confidence.Recency == 0 &&
+		config.Weights.Confidence.Consensus == 0 {
 		config.Weights.Confidence = def.Weights.Confidence
 	}
 
@@ -175,17 +180,18 @@ func PrintConfig(config SystemConfig) {
 	fmt.Printf("   - Top N Recommendations: %d\n", config.N)
 
 	fmt.Printf("\n⚖️  PESOS:\n")
-	fmt.Printf("   - Accuracy: time=%.2f, pref=%.2f, recency=%.2f, alpha=%.2f\n",
-		config.Weights.Accuracy.Time,
-		config.Weights.Accuracy.Pref,
-		config.Weights.Accuracy.Recency,
-		config.Weights.Accuracy.Alpha,
+	fmt.Printf("   - Similarity: common=%.2f, playtime=%.2f, reviews=%.2f, prefs=%.2f\n",
+		config.Weights.Similarity.CommonGames,
+		config.Weights.Similarity.Playtime,
+		config.Weights.Similarity.Reviews,
+		config.Weights.Similarity.Prefs,
 	)
-	fmt.Printf("   - Confidence: coverage=%.2f, agreement=%.2f, strength=%.2f, quality=%.2f\n",
-		config.Weights.Confidence.Coverage,
-		config.Weights.Confidence.Agreement,
-		config.Weights.Confidence.Strength,
-		config.Weights.Confidence.Quality,
+	fmt.Printf("   - Confidence: similarity=%.2f, sample=%.2f, playtime=%.2f, recency=%.2f, consensus=%.2f\n",
+		config.Weights.Confidence.Similarity,
+		config.Weights.Confidence.Sample,
+		config.Weights.Confidence.Playtime,
+		config.Weights.Confidence.Recency,
+		config.Weights.Confidence.Consensus,
 	)
 
 	fmt.Printf("\n💻 SISTEMA:\n")
