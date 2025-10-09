@@ -1,0 +1,30 @@
+{
+  "concurrency": {
+    "parser_workers": 6,
+    "similarity_workers": 12,
+    "recommendation_workers": 6,
+    "buffer_size": 2000
+  },
+  "sampling": {
+    "percentage": 10,
+    "random_seed": 42
+  },
+  "min_common_games": 1,
+  "min_similarity_score": 0.005,
+  "k": 10,
+  "n": 5,
+  "weights": {
+    "accuracy": {
+      "time": 0.1,
+      "pref": 0.1,
+      "recency": 0.1,
+      "alpha": 0.7
+    },
+    "confidence": {
+      "coverage": 0.4,
+      "agreement": 0.3,
+      "strength": 0.2,
+      "quality": 0.1
+    }
+  }
+}
