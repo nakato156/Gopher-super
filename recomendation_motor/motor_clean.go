@@ -95,6 +95,44 @@ func PearsonCorrelation(x, y []float64) (float64, error) {
 	return correlation, nil
 }
 
+// CosineSimilarity calcula la similitud del coseno entre dos vectores no negativos.
+// Retorna un valor en [0,1]. Si alguno de los vectores es cero, retorna 0.
+func CosineSimilarity(x, y []float64) (float64, error) {
+	n := len(x)
+	if n != len(y) {
+		return 0, fmt.Errorf("vectores deben tener la misma longitud")
+	}
+	if n == 0 {
+		return 0, fmt.Errorf("vectores no pueden estar vacíos")
+	}
+
+	var dot, normX, normY float64
+	for i := 0; i < n; i++ {
+		xi := x[i]
+		yi := y[i]
+		dot += xi * yi
+		normX += xi * xi
+		normY += yi * yi
+	}
+
+	if normX == 0 || normY == 0 {
+		return 0, nil
+	}
+
+	denom := math.Sqrt(normX) * math.Sqrt(normY)
+	if denom == 0 {
+		return 0, nil
+	}
+	cos := dot / denom
+	// Asegurar rango numérico por estabilidad
+	if cos < 0 {
+		cos = 0
+	} else if cos > 1 {
+		cos = 1
+	}
+	return cos, nil
+}
+
 // CalculateUserSimilarity compara dos perfiles de usuario usando múltiples variables.
 // Fórmula general (pesos runtime desde config.Weights.Similarity):
 //
@@ -105,7 +143,7 @@ func PearsonCorrelation(x, y []float64) (float64, error) {
 //
 // Donde:
 // - commonGamesRatio = |JuegosComunes| / |JuegosTarget|
-// - playtimeSimilarity = Pearson(user1.playtime[comunes], user2.playtime[comunes]) mapeado a [0,1]
+// - playtimeSimilarity = Cosine(user1.playtime[comunes], user2.playtime[comunes]) en [0,1]
 // - reviewSimilarity y preferenceSimilarity usan Features según índices documentados
 // Nota: si hay < 2 juegos en común se aplica penalización proporcional (penaltyFactor) al score.
 func CalculateUserSimilarity(user1, user2 *UserProfile, simWeights SimilarityWeights) (float64, int, error) {
@@ -177,14 +215,12 @@ func calculatePlaytimeSimilarity(user1, user2 *UserProfile, commonGames []string
 		vec2[i] = user2.Games[gameID]
 	}
 
-	// Calcular correlación de Pearson para horas de juego
-	pearsonScore, err := PearsonCorrelation(vec1, vec2)
+	// Calcular similitud de coseno para horas de juego (ya en [0,1])
+	cos, err := CosineSimilarity(vec1, vec2)
 	if err != nil {
 		return 0.0
 	}
-
-	// Normalizar a rango [0, 1]
-	return (pearsonScore + 1.0) / 2.0
+	return cos
 }
 
 // calculateReviewSimilarity calcula similaridad basada en patrones de review
