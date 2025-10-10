@@ -142,7 +142,7 @@ func CosineSimilarity(x, y []float64) (float64, error) {
 //	           + w.preferences  * preferenceSimilarity
 //
 // Donde:
-// - commonGamesRatio = |JuegosComunes| / |JuegosTarget|
+// - commonGamesRatio = Jaccard = |A∩B| / |A∪B|
 // - playtimeSimilarity = Cosine(user1.playtime[comunes], user2.playtime[comunes]) en [0,1]
 // - reviewSimilarity y preferenceSimilarity usan Features según índices documentados
 // Nota: si hay < 2 juegos en común se aplica penalización proporcional (penaltyFactor) al score.
@@ -162,9 +162,12 @@ func CalculateUserSimilarity(user1, user2 *UserProfile, simWeights SimilarityWei
 		return 0, 0, nil
 	}
 
-	// 1. SIMILARIDAD DE JUEGOS EN COMÚN (peso desde config)
-	targetGamesCount := len(user1.Games)
-	commonGamesRatio := float64(numCommonGames) / float64(targetGamesCount)
+	// 1. SIMILARIDAD DE JUEGOS EN COMÚN (peso desde config) usando Jaccard
+	unionSize := len(user1.Games) + len(user2.Games) - numCommonGames
+	commonGamesRatio := 0.0
+	if unionSize > 0 {
+		commonGamesRatio = float64(numCommonGames) / float64(unionSize)
+	}
 
 	// 2. SIMILARIDAD DE COMPORTAMIENTO DE JUEGO (Peso: 0.3)
 	playtimeSimilarity := calculatePlaytimeSimilarity(user1, user2, commonGames)
@@ -531,11 +534,8 @@ func RecommendGames(
 					numReviews = userProfile.Features[10]
 				}
 
-				// Bonos sobre playtime_base
+				// Bonos sobre playtime_base (sin duplicar el efecto de "recommended")
 				bonus := 1.0
-				if recommended >= 0.5 {
-					bonus *= 1.30
-				}
 				if playtimeBase > 6000 {
 					bonus *= 1.20
 				}
@@ -620,7 +620,8 @@ func RecommendGames(
 		playtimeConf := clamp01(gamePtConfSum[gameID] / count)
 		// 4) recency_conf: media de recency
 		recencyConf := clamp01(gameRecencyConfSum[gameID] / count)
-		// 5) consensus_conf: 1 - CV de contribuciones
+		// 5) consensus_conf: 1 - CV de contribuciones (protegido con epsilon)
+		eps := 1e-6
 		mean := avgScore
 		variance := 0.0
 		for _, v := range contribs {
@@ -633,14 +634,13 @@ func RecommendGames(
 			variance = 0
 		}
 		std := math.Sqrt(variance)
-		cv := 0.0
-		if mean > 0 {
-			cv = std / mean
+		cv := std / (mean + eps)
+		// Mapear CV a [0,1] suavemente: cv_cap = 1 - exp(-cv)
+		cvCap := 1.0 - math.Exp(-cv)
+		if cvCap > 1 {
+			cvCap = 1
 		}
-		if cv > 1 {
-			cv = 1
-		}
-		consensusConf := 1.0 - cv
+		consensusConf := 1.0 - cvCap
 
 		wc := config.Weights.Confidence
 		confidence := clamp01(
