@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -730,55 +732,50 @@ func createTargetUserFromRealData(gameNames map[string]string) *UserProfile {
 // createTargetUserDemo crea un usuario target usando juegos concretos del dataset (por nombre)
 // Intenta usar títulos populares para maximizar el solapamiento y facilitar una accuracy alta.
 
-// createTargetUserRich crea un usuario target con Features completas y realistas
-func createTargetUserRich(gameNames map[string]string) *UserProfile {
-	// Seleccionar 3 juegos del dataset (primeros encontrados)
-	popularGames := make(map[string]float64)
-	count := 0
-	for gameID, gameName := range gameNames {
-		hours := []float64{140.0, 95.0, 75.0}
-		if count < len(hours) {
-			popularGames[gameID] = hours[count]
-			fmt.Printf("   - %s (ID: %s): %.0f horas\n", gameName, gameID, hours[count])
-			count++
-			if count >= 3 {
-				break
-			}
+type TargetGame struct {
+	ID      string  `json:"id"`
+	Minutes float64 `json:"minutes"`
+}
+
+func createTargetFromConfig(gameNames map[string]string, target []TargetGame) *UserProfile {
+	uid := "target_user_rich"
+
+	up := &UserProfile{
+		UserID:   uid,
+		Games:    make(map[string]float64), // gameID -> minutes
+		Features: make([]float64, 16),      // deja espacio por si tu fórmula lee índices
+	}
+
+	fmt.Printf("Creando usuario target a partir de config...\n")
+	for _, tg := range target {
+		if tg.ID == "" || tg.Minutes <= 0 {
+			continue
 		}
+		up.Games[tg.ID] = tg.Minutes
+		name := gameNames[tg.ID]
+		if name == "" {
+			name = tg.ID
+		}
+		fmt.Printf("   - %s (ID: %s): %s\n", name, tg.ID, fmtMinutes(tg.Minutes))
 	}
 
-	if len(popularGames) == 0 {
-		return createTargetUserFromRealData(gameNames)
+	// Opcional: inicializa algunos features neutrales para no sesgar
+	// tu fórmula cuando lea índices del vector Features.
+	// (ajusta si tu pipeline requiere valores específicos)
+	if len(up.Features) > 14 {
+		up.Features[14] = 0.5 // "recommended" neutro
+	}
+	if len(up.Features) > 5 {
+		up.Features[5] = 0.6 // weighted_vote_score moderado
 	}
 
-	features := make([]float64, 18)
-	now := float64(time.Now().Unix())
+	return up
+}
 
-	// Valores realistas para probar el uso de variables complementarias
-	features[0] = 120.0            // author.playtime_forever (global aproximado)
-	features[1] = 180.0            // author.playtime_last_two_weeks (>0)
-	features[2] = 720.0            // author.playtime_at_review (>600)
-	features[3] = 12.0             // votes_helpful
-	features[4] = 3.0              // votes_funny
-	features[5] = 0.85             // weighted_vote_score (>0.7)
-	features[6] = now - 60*24*3600 // timestamp_created (hace ~60 días)
-	features[7] = now - 7*24*3600  // timestamp_updated (hace ~7 días)
-	features[8] = now - 30*24*3600 // author.last_played (hace ~30 días)
-	features[9] = 200.0            // author.num_games_owned
-	features[10] = 25.0            // author.num_reviews (>=20 para credibilidad=1)
-	features[11] = 8.0             // comment_count
-	features[12] = 123456.0        // review_id
-	features[13] = 0.0             // (sin uso específico)
-	features[14] = 1.0             // recommended (>=0.5)
-	features[15] = 1.0             // steam_purchase
-	features[16] = 0.0             // received_for_free
-	features[17] = 0.0             // written_during_early_access
-
-	return &UserProfile{
-		UserID:   "target_user_rich",
-		Games:    popularGames,
-		Features: features,
-	}
+func fmtMinutes(m float64) string {
+	// Sólo para logs bonitos: 60 min = 1.0 h → "1.0h"
+	h := m / 60.0
+	return fmt.Sprintf("%.1fh", h)
 }
 
 func runMotor() {
@@ -792,7 +789,7 @@ func runMotor() {
 	systemConfig, err := LoadConfig(configFile)
 	if err != nil {
 		fmt.Printf("❌ Error cargando configuración: %v\n", err)
-		fmt.Printf("🔧 Usando configuración por defecto\n")
+		fmt.Printf("Usando configuración por defecto\n")
 		systemConfig = DefaultConfig()
 	}
 
@@ -807,12 +804,12 @@ func runMotor() {
 		fmt.Printf("❌ Archivos de persistencia no encontrados:\n")
 		fmt.Printf("   - %s\n", profilesFile)
 		fmt.Printf("   - %s\n", gameNamesFile)
-		fmt.Printf("💡 Ejecuta primero: go run sample_parser.go\n")
+		fmt.Printf("Ejecuta primero: go run sample_parser.go\n")
 		return
 	}
 
 	// Cargar datos desde archivos de persistencia
-	fmt.Printf("\n📁 Cargando datos desde archivos de persistencia...\n")
+	fmt.Printf("\nCargando datos desde archivos de persistencia...\n")
 
 	var allUsers []*UserProfile
 	var gameNames map[string]string
@@ -829,15 +826,15 @@ func runMotor() {
 		return
 	}
 
-	fmt.Printf("✅ Datos cargados exitosamente:\n")
+	fmt.Printf("Datos cargados exitosamente:\n")
 	fmt.Printf("   - Perfiles: %d usuarios\n", len(allUsers))
 	fmt.Printf("   - Juegos: %d juegos únicos\n", len(gameNames))
 
 	// Crear usuario target con features completas para verificación
-	fmt.Printf("\n🎯 Creando usuario target con features completas...\n")
-	targetUser := createTargetUserRich(gameNames)
+	fmt.Printf("\nCreando usuario target con features completas...\n")
+	targetUser := createTargetFromConfig(gameNames, systemConfig.TargetGames)
 
-	fmt.Printf("✅ Usuario target creado con %d juegos del dataset real\n", len(targetUser.Games))
+	fmt.Printf("Usuario target creado con %d juegos del dataset real\n", len(targetUser.Games))
 
 	// Agregar usuario target a la lista de usuarios reales
 	allUsers = append(allUsers, targetUser)
@@ -851,11 +848,19 @@ func runMotor() {
 	// Convertir configuración del sistema a configuración compatible
 	config := ConvertSystemConfigToConfig(systemConfig)
 
-	fmt.Printf("\n🔍 Buscando usuarios similares en %d usuarios...\n", len(allUsers))
-	fmt.Printf("🔧 Usando %d workers para similaridad\n", config.NumWorkers)
+	fmt.Printf("\nBuscando usuarios similares en %d usuarios...\n", len(allUsers))
+	fmt.Printf("Usando %d workers para similaridad\n", config.NumWorkers)
 
 	// Ejecutar Fase 1: Encontrar usuarios similares
 	similarityResults := FindSimilarUsers(targetUser, allUsers, config)
+
+	// Exportar matriz de similitud a CSV para revisión
+	csvFile := "similarities.csv"
+	if err := writeSimilaritiesCSV(targetUser.UserID, similarityResults, csvFile); err != nil {
+		fmt.Printf("⚠️  Error al escribir CSV de similitud: %v\n", err)
+	} else {
+		fmt.Printf("CSV de similitud escrito en: %s\n", csvFile)
+	}
 
 	// Ejecutar Fase 2: Generar recomendaciones
 	recommendations := RecommendGames(
@@ -868,7 +873,7 @@ func runMotor() {
 
 	// Mostrar resultados finales
 	fmt.Printf("\n============================================================\n")
-	fmt.Printf("🎯 USUARIO TARGET: %s\n", targetUser.UserID)
+	fmt.Printf("USUARIO TARGET: %s\n", targetUser.UserID)
 	fmt.Printf("============================================================\n")
 
 	// Mostrar usuarios similares
@@ -894,4 +899,37 @@ func runMotor() {
 	}
 
 	fmt.Printf("\n============================================================\n")
+}
+
+// writeSimilaritiesCSV escribe los resultados de similitud a un archivo CSV.
+// Columnas: target_user, other_user, score, common_games
+func writeSimilaritiesCSV(targetUserID string, sims []SimilarityResult, path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	w := csv.NewWriter(file)
+	defer w.Flush()
+
+	// Cabecera
+	if err := w.Write([]string{"target_user", "other_user", "score", "common_games"}); err != nil {
+		return err
+	}
+
+	for _, s := range sims {
+		record := []string{
+			targetUserID,
+			s.UserID,
+			fmt.Sprintf("%.6f", s.Score),
+			fmt.Sprintf("%d", s.CommonGames),
+		}
+		if err := w.Write(record); err != nil {
+			return err
+		}
+	}
+
+	w.Flush()
+	return w.Error()
 }

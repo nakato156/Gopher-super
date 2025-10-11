@@ -1,107 +1,166 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║   PIPELINE COMPLETO DE RECOMENDACIONES                      ║"
-echo "║   CON MÉTRICAS DE RENDIMIENTO Y CONFIGURACIÓN              ║"
-echo "╚════════════════════════════════════════════════════════════╝"
-echo ""
+# ---------------------------
+# Config rápida
+# ---------------------------
+APP_BIN="./bin/recom"
+CONFIG_FILE="config.json"
+PERSIST_DIR="data/persistence"
 
-# Función para mostrar el progreso
-show_progress() {
-    echo ""
-    echo "═══════════════════════════════════════════════════════════════"
-    echo "🔄 $1"
-    echo "═══════════════════════════════════════════════════════════════"
-    echo ""
+# Modo por defecto:
+#   pipeline  -> PASOS 1-4 (NO corre compare)
+#   compare   -> SOLO PASO 5 (re-ejecuta internamente secuencial+concurrente)
+#   concurrent|sequential -> sólo ese motor
+MODE="${1:-pipeline}"
+
+# ---------------------------
+# Helpers
+# ---------------------------
+banner() { echo -e "\n$1\n"; }
+section() {
+  echo ""
+  echo "═══════════════════════════════════════════════════════════════"
+  echo "$1"
+  echo "═══════════════════════════════════════════════════════════════"
+  echo ""
 }
+ok()   { echo "✔ $1"; }
+fail() { echo "✘ $1"; exit 1; }
 
-# Función para verificar si un comando fue exitoso
-check_success() {
-    if [ $? -eq 0 ]; then
-        echo "✅ $1 completado exitosamente"
-    else
-        echo "❌ Error en $1"
-        exit 1
-    fi
-}
+trap 'echo "Error en línea ${LINENO}. Abortando."; exit 1' ERR
 
-echo "🔧 Verificando configuración..."
-if [ ! -f "config.json" ]; then
-    echo "📁 Creando archivo de configuración por defecto..."
-    cat > config.json << EOF
+# ---------------------------
+# 0) Verificar/crear config
+# ---------------------------
+banner "╔════════════════════════════════════════════════════════════╗
+║   PIPELINE COMPLETO DE RECOMENDACIONES                     ║
+║   CON MÉTRICAS DE RENDIMIENTO Y CONFIGURACIÓN              ║
+╚════════════════════════════════════════════════════════════╝"
+
+echo "Verificando configuración..."
+if [ ! -f "$CONFIG_FILE" ]; then
+  cat > "$CONFIG_FILE" << 'EOF'
 {
   "concurrency": {
-    "parser_workers": 4,
-    "similarity_workers": 8,
-    "recommendation_workers": 4,
-    "buffer_size": 1000
+    "parser_workers": 6,
+    "similarity_workers": 12,
+    "recommendation_workers": 6,
+    "buffer_size": 2000
   },
   "sampling": {
     "percentage": 10,
     "random_seed": 42
   },
   "min_common_games": 1,
-  "min_similarity_score": 0.01,
+  "min_similarity_score": 0.1,
   "k": 10,
   "n": 5
 }
 EOF
-    echo "✅ Configuración creada"
+  ok "Configuración creada en $CONFIG_FILE"
 else
-    echo "✅ Configuración encontrada"
-    echo "📋 Mostrando configuración actual:"
-    cat config.json
+  echo "Configuración encontrada. Mostrando:"
+  cat "$CONFIG_FILE"
 fi
 
-echo ""
-echo "🚀 INICIANDO PIPELINE COMPLETO"
-echo ""
+mkdir -p "$PERSIST_DIR"
 
-# PASO 1: SAMPLING Y LIMPIEZA DE COLUMNAS (solo si no existe el archivo de muestra)
-show_progress "PASO 1: SAMPLING Y LIMPIEZA DE COLUMNAS"
-if [ ! -f "steam_reviews_sample_10pct.csv" ]; then
-    echo "📊 Archivo de muestra no encontrado, ejecutando sampling y limpieza..."
-    go run . cleaner
-    check_success "Sampling y limpieza"
+# ---------------------------
+# 1) Build único (rápido)
+# ---------------------------
+section "BUILD"
+if [ ! -x "$APP_BIN" ]; then
+  mkdir -p "$(dirname "$APP_BIN")"
+  go build -o "$APP_BIN" .
+  ok "Binario compilado en $APP_BIN"
 else
-    echo "✅ Archivo de muestra ya existe, saltando sampling y limpieza"
+  # Rebuild si fuentes son más nuevas que binario
+  if [ "$(find . -name '*.go' -newer "$APP_BIN" | wc -l)" -gt 0 ]; then
+    go build -o "$APP_BIN" .
+    ok "Binario actualizado en $APP_BIN"
+  else
+    ok "Binario ya está al día"
+  fi
 fi
 
-# PASO 2: PARSING (solo si no existen archivos de persistencia)
-show_progress "PASO 2: PARSING DE DATOS"
-if [ ! -f "data/persistence/user_profiles_sample.gob" ] || [ ! -f "data/persistence/game_names_sample.gob" ]; then
-    echo "📊 Archivos de persistencia no encontrados, ejecutando parser..."
-    go run . parser
-    check_success "Parsing de datos"
-else
-    echo "✅ Archivos de persistencia ya existen, saltando parser"
-fi
+# ---------------------------
+# Funciones de pasos
+# ---------------------------
+sampling_and_clean() {
+  section "PASO 1: SAMPLING Y LIMPIEZA DE COLUMNAS"
+  if [ ! -f "steam_reviews_sample_10pct.csv" ]; then
+    echo "Ejecutando sampling y limpieza…"
+    "$APP_BIN" cleaner --config="$CONFIG_FILE"
+    ok "Sampling y limpieza"
+  else
+    echo "Archivo de muestra ya existe, saltando"
+  fi
+}
 
-# PASO 3: MOTOR DE RECOMENDACIONES
-show_progress "PASO 3: MOTOR DE RECOMENDACIONES"
-echo "🎯 Generando recomendaciones con análisis de rendimiento..."
-go run . motor
-check_success "Motor de recomendaciones"
+parse_step() {
+  section "PASO 2: PARSING DE DATOS"
+  if [ ! -f "$PERSIST_DIR/user_profiles_sample.gob" ] || [ ! -f "$PERSIST_DIR/game_names_sample.gob" ]; then
+    echo "Ejecutando parser…"
+    "$APP_BIN" parser --config="$CONFIG_FILE"
+    ok "Parsing de datos"
+  else
+    echo "Persistencia ya existe, saltando parser"
+  fi
+}
 
-# RESUMEN FINAL
-echo ""
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║                    PIPELINE COMPLETADO                     ║"
-echo "╚════════════════════════════════════════════════════════════╝"
-echo ""
-echo "✅ TODOS LOS PASOS COMPLETADOS EXITOSAMENTE:"
-echo "   1️⃣ Sampling y limpieza de columnas"
-echo "   2️⃣ Parsing de datos (si era necesario)"
-echo "   3️⃣ Motor de recomendaciones"
-echo ""
-echo "📊 MÉTRICAS INCLUIDAS EN CADA PASO:"
-echo "   - Tiempo de cómputo (ms y segundos)"
-echo "   - Elementos procesados por segundo"
-echo "   - Número de workers utilizados"
-echo "   - Análisis de paralelización"
-echo ""
-echo "💡 Para modificar la configuración, edita el archivo config.json"
-echo "💡 Para ejecutar solo un paso específico:"
-echo "   - go run . cleaner  (sampling y limpieza)"
-echo "   - go run . parser   (parsing de datos)"
-echo "   - go run . motor    (motor de recomendaciones)"
+motor_concurrent() {
+  section "PASO 3: MOTOR DE RECOMENDACIONES (CONCURRENTE)"
+  "$APP_BIN" motor --config="$CONFIG_FILE"
+  ok "Motor concurrente"
+}
+
+motor_sequential() {
+  section "PASO 4: MOTOR DE RECOMENDACIONES (SECUENCIAL)"
+  "$APP_BIN" sequential --config="$CONFIG_FILE"
+  ok "Motor secuencial"
+}
+
+compare_step() {
+  section "PASO 5: COMPARACIÓN DE RENDIMIENTO"
+  "$APP_BIN" compare --config="$CONFIG_FILE"
+  ok "Comparación de rendimiento"
+}
+
+# ---------------------------
+# Ejecución por modo
+# ---------------------------
+case "$MODE" in
+  pipeline)
+    banner "INICIANDO PIPELINE (sin comparación)"
+    sampling_and_clean
+    parse_step
+    motor_concurrent
+    motor_sequential
+    ;;
+  compare)
+    banner "INICIANDO COMPARACIÓN SOLAMENTE"
+    # No ejecutamos motor/sequential antes: compare ya los corre internamente.
+    # Aun así, aseguramos que existan datos base:
+    sampling_and_clean
+    parse_step
+    compare_step
+    ;;
+  concurrent)
+    banner "EJECUTANDO SÓLO CONCURRENTE"
+    sampling_and_clean
+    parse_step
+    motor_concurrent
+    ;;
+  sequential)
+    banner "EJECUTANDO SÓLO SECUENCIAL"
+    sampling_and_clean
+    parse_step
+    motor_sequential
+    ;;
+  *)
+    fail "Modo inválido: $MODE (usa: pipeline | compare | concurrent | sequential)"
+    ;;
+esac
+
+echo -e "\nListo."

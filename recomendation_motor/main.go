@@ -9,9 +9,11 @@ func main() {
 	if len(os.Args) < 2 {
 		fmt.Printf("Uso: go run . <comando>\n")
 		fmt.Printf("Comandos disponibles:\n")
-		fmt.Printf("  cleaner   - Limpiar y muestrear datos CSV\n")
-		fmt.Printf("  parser    - Ejecutar parser de datos\n")
-		fmt.Printf("  motor     - Ejecutar motor de recomendaciones\n")
+		fmt.Printf("  cleaner    - Limpiar y muestrear datos CSV\n")
+		fmt.Printf("  parser     - Ejecutar parser de datos\n")
+		fmt.Printf("  motor      - Ejecutar motor de recomendaciones (concurrente)\n")
+		fmt.Printf("  sequential - Ejecutar motor de recomendaciones (secuencial)\n")
+		fmt.Printf("  compare    - Comparar versión secuencial vs concurrente\n")
 		return
 	}
 
@@ -24,8 +26,12 @@ func main() {
 		runParser()
 	case "motor":
 		runMotor()
+	case "sequential":
+		runMotorSequential()
+	case "compare":
+		CompareSequentialVsConcurrent()
 	default:
 		fmt.Printf("Comando desconocido: %s\n", command)
-		fmt.Printf("Comandos disponibles: cleaner, parser, motor\n")
+		fmt.Printf("Comandos disponibles: cleaner, parser, motor, sequential, compare\n")
 	}
 }

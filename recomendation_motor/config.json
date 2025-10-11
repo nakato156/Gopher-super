@@ -9,7 +9,7 @@
     "percentage": 10,
     "random_seed": 42
   },
-  "min_common_games": 2,
+  "min_common_games": 1,
   "min_similarity_score": 0.1,
   "k": 10,
   "n": 5,
@@ -27,5 +27,19 @@
       "recency": 0.1,
       "consensus": 0.05
     }
-  }
+  },
+  "target_games": [
+    {
+      "id": "585420",
+      "minutes": 140
+    },
+    {
+      "id": "648800",
+      "minutes": 95
+    },
+    {
+      "id": "626690",
+      "minutes": 75
+    }
+  ]
 }

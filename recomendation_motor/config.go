@@ -64,7 +64,8 @@ type SystemConfig struct {
 	N                  int     `json:"n"` // Top N recomendaciones
 
 	// Pesos del sistema
-	Weights WeightsConfig `json:"weights"`
+	Weights     WeightsConfig `json:"weights"`
+	TargetGames []TargetGame  `json:"target_games"`
 }
 
 // DefaultConfig retorna la configuración por defecto
@@ -106,8 +107,8 @@ func DefaultConfig() SystemConfig {
 func LoadConfig(configFile string) (SystemConfig, error) {
 	// Si el archivo no existe, usar configuración por defecto
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		fmt.Printf("📁 Archivo de configuración no encontrado: %s\n", configFile)
-		fmt.Printf("🔧 Usando configuración por defecto\n")
+		fmt.Printf("Archivo de configuración no encontrado: %s\n", configFile)
+		fmt.Printf("Usando configuración por defecto\n")
 		return DefaultConfig(), nil
 	}
 
@@ -135,6 +136,30 @@ func LoadConfig(configFile string) (SystemConfig, error) {
 		config.Weights.Confidence.Playtime == 0 && config.Weights.Confidence.Recency == 0 &&
 		config.Weights.Confidence.Consensus == 0 {
 		config.Weights.Confidence = def.Weights.Confidence
+	}
+
+	if len(config.TargetGames) > 0 {
+		out := make([]TargetGame, 0, len(config.TargetGames))
+		seen := make(map[string]bool)
+		for _, tg := range config.TargetGames {
+			if tg.ID == "" || tg.Minutes <= 0 {
+				continue
+			}
+			if seen[tg.ID] {
+				continue // evitar duplicados por ID
+			}
+			out = append(out, tg)
+			seen[tg.ID] = true
+		}
+		config.TargetGames = out
+	}
+
+	// (Opcional) Fallback si target_games viene vacío
+	// Si prefieres forzar que esté presente, elimina este bloque y valida fuera.
+	if len(config.TargetGames) == 0 {
+		fmt.Println("⚠️  target_games vacío en config; el motor creará uno ad-hoc o fallará con mensaje claro.")
+		// Puedes dejarlo así, o sembrar uno mínimo aquí si lo deseas:
+		// cfg.TargetGames = []TargetGame{{ID: "648800", Minutes: 120}} // Raft, ejemplo
 	}
 
 	return config, nil
