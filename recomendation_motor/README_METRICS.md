@@ -246,3 +246,56 @@ recomendation_motor/
 - **Eficiencia**: Evalúa uso de recursos
 - **Comparación**: Permite probar diferentes configuraciones
 - **Monitoreo**: Seguimiento en tiempo real del rendimiento
+
+---
+
+# Análisis de Concurrencia en el Motor de Recomendaciones
+
+Este análisis evalúa el impacto del número de workers (goroutines) en el rendimiento del cálculo de similaridad de usuarios en el motor de recomendaciones basado en datos de Steam.
+
+## Datos de las pruebas
+
+| Workers | Tiempo Total (s) | Elementos/segundo |
+|---------|-----------------|-----------------|
+| 6       | 0.290           | 5,326,287       |
+| 12      | 0.293           | 5,266,473       |
+| 18      | 0.304           | 5,076,742       |
+| 24      | 0.320           | 4,830,602       |
+| 48      | 0.362           | 4,266,636       |
+| 72      | 0.388           | 3,982,751       |
+
+---
+
+## Speedup y Eficiencia
+
+Se calculó el **speedup** tomando como base la prueba con 6 workers, y la **eficiencia** relativa:
+
+| Workers | Speedup | Eficiencia (%) |
+|---------|---------|----------------|
+| 6       | 1.00    | 100            |
+| 12      | 0.99    | 49.4           |
+| 18      | 0.95    | 31.7           |
+| 24      | 0.91    | 22.8           |
+| 48      | 0.80    | 10.0           |
+| 72      | 0.75    | 6.2            |
+
+---
+
+## Interpretación
+
+- **Rendimiento óptimo**: Se alcanza con 6 workers, coincidiendo con los **6 núcleos físicos** del CPU (Ryzen 5 5600X).  
+- **Sobrecarga de concurrencia**: Aumentar los workers más allá de los núcleos físicos no mejora el rendimiento; de hecho, el tiempo aumenta ligeramente.  
+- **Eficiencia decreciente**: La eficiencia cae significativamente a medida que el número de workers se incrementa debido al overhead de sincronización y gestión de goroutines.  
+- **Ley de Amdahl**: Este comportamiento refleja que el paralelismo tiene un límite práctico; más goroutines no siempre significa mayor velocidad.
+
+---
+
+## Conclusión
+
+El número óptimo de workers para el cálculo de similaridad en este sistema es **6**, igual al número de núcleos físicos del CPU. Incrementar el número de workers genera **sobrehead**, disminuyendo la eficiencia y el rendimiento global.
+
+---
+
+## Recomendación
+
+Mantener `similarity_workers = 6` en la configuración del motor para asegurar **máximo rendimiento y eficiencia** en cálculos de similaridad de usuarios.
