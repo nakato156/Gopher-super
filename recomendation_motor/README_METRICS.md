@@ -281,6 +281,13 @@ Se calculó el **speedup** tomando como base la prueba con 6 workers, y la **efi
 
 ---
 
+## Gráficos de Análisis de Concurrencia
+
+![Análisis de Workers](analisis_workers.png)
+
+
+---
+
 ## Interpretación
 
 - **Rendimiento óptimo**: Se alcanza con 6 workers, coincidiendo con los **6 núcleos físicos** del CPU (Ryzen 5 5600X).  
