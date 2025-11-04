@@ -1,0 +1,40 @@
+services:
+  api:
+    build: ./api-coordinator
+    env_file: ./deploy/env/api.env
+    ports:
+      - "8080:8080"   # REST
+      - "8081:8081"   # WebSocket
+    depends_on: [mongo, redis, worker1, worker2]
+    networks: [internal]
+
+  worker1:
+    build: ./worker-node
+    env_file: ./deploy/env/worker.env
+    networks: [internal]
+  worker2:
+    build: ./worker-node
+    env_file: ./deploy/env/worker.env
+    networks: [internal]
+
+  mongo:
+    image: mongo:7
+    volumes: [ "mongo_data:/data/db" ]
+    networks: [internal]
+
+  redis:
+    image: redis:7
+    networks: [internal]
+
+  web:
+    build: ./web-frontend
+    ports:
+      - "3000:80"
+    depends_on: [api]
+    networks: [internal]
+
+networks:
+  internal:
+
+volumes:
+  mongo_data:
