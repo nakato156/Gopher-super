@@ -1,4 +1,4 @@
-package server
+package tcpserver
 
 import (
 	"bufio"
@@ -200,7 +200,7 @@ func (s *Server) registerWorkerInRedis(WorkerID string, Concurrency int, addr st
 	fields := map[string]interface{}{
 		"worker_id":   WorkerID,
 		"concurrency": Concurrency,
-		"state":       types.WorkerIdle,
+		"state":       int(types.WorkerIdle),
 		"last_seen":   lastSeen.UnixMilli(),
 		"addr":        addr,
 	}

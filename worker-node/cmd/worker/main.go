@@ -5,15 +5,14 @@ import (
 	"goflix/pkg/styles"
 	"goflix/worker-node/internal/client"
 	"net"
+	"os"
 )
 
 func main() {
-	addrs := "localhost:9090"
-
 	worker := client.NewClient()
 	worker.State = client.StConnecting
 
-	conn, err := net.Dial("tcp", addrs)
+	conn, err := net.Dial("tcp", os.Getenv("COORDINATOR_ADDR"))
 
 	if err != nil {
 		worker.State = client.StDisconnected

@@ -2,10 +2,9 @@ package dispatcher
 
 import (
 	"context"
+	"goflix/api-coordinator/internal/tcpserver"
+	"goflix/pkg/types"
 	"time"
-
-	"api-coordinator/internal/server"
-	"api-coordinator/pkg/types"
 )
 
 type (
@@ -14,7 +13,7 @@ type (
 )
 
 type Dispatcher struct {
-	server   *server.Server
+	server   *tcpserver.Server
 	blocks   <-chan Task   // producido por planner
 	results  chan<- Result // para merger
 	timeouts time.Duration

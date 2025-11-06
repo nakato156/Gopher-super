@@ -1,37 +1,60 @@
-services:
-  api:
-    build: ./api-coordinator
-    env_file: ./deploy/env/api.env
-    ports:
-      - "8080:8080"   # REST
-      - "8081:8081"   # WebSocket
-    depends_on: [mongo, redis, worker1, worker2]
-    networks: [internal]
+version: "3.9"
 
+services:
+  # Servidor TCP que aceptará conexiones de workers
+  api:
+    build:
+      context: .
+      dockerfile: api-coordinator/Dockerfile
+    env_file: ./deploy/env/api.env
+    environment:
+      COORDINATOR_ADDR: ":9000"
+    expose:
+      - "9090"
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+    networks:
+      - internal
+
+  # Workers que se conectan a api:9090
   worker1:
-    build: ./worker-node
+    build:
+      context: .
+      dockerfile: worker-node/Dockerfile
     env_file: ./deploy/env/worker.env
-    networks: [internal]
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - internal
+
   worker2:
-    build: ./worker-node
+    build:
+      context: .
+      dockerfile: worker-node/Dockerfile
     env_file: ./deploy/env/worker.env
-    networks: [internal]
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - internal
 
   mongo:
     image: mongo:7
-    volumes: [ "mongo_data:/data/db" ]
-    networks: [internal]
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    networks:
+      - internal
 
   redis:
     image: redis:7
-    networks: [internal]
-
-  web:
-    build: ./web-frontend
-    ports:
-      - "3000:80"
-    depends_on: [api]
-    networks: [internal]
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    networks:
+      - internal
 
 networks:
   internal:
