@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Film, User, LogOut } from 'lucide-react';
+import { Film, User, LogOut, UserCircle } from 'lucide-react';
 import { 
   Movie, 
   fetchTrendingMovies, 
@@ -15,9 +15,10 @@ import { searchMovies, MovieSearchResult } from '../services/movieSearch';
 
 interface DashboardProps {
   onLogout?: () => void;
+  onNavigateToProfile?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigateToProfile }) => {
   const [recommendedMovies, setRecommendedMovies] = useState<Movie[]>([]);
   const [topIMDBMovies, setTopIMDBMovies] = useState<Movie[]>([]);
   const [topTMDbMovies, setTopTMDbMovies] = useState<Movie[]>([]);
@@ -159,6 +160,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       gap: '12px',
       flexShrink: 0,
     },
+    profileButton: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '8px',
+      background: '#262335',
+      border: '1px solid #2a2640',
+      borderRadius: '8px',
+      color: '#ffffff',
+      cursor: 'pointer',
+      transition: 'all 0.3s ease',
+      width: '40px',
+      height: '40px',
+    },
     userInfo: {
       display: 'flex',
       alignItems: 'center',
@@ -226,6 +241,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
               <User size={20} />
               <span style={styles.userName}>{userName}</span>
             </div>
+            {onNavigateToProfile && (
+              <button
+                style={styles.profileButton}
+                onClick={onNavigateToProfile}
+                title="Ver perfil"
+              >
+                <UserCircle size={20} />
+              </button>
+            )}
             <button
               style={styles.logoutButton}
               onClick={handleLogout}
@@ -270,6 +294,23 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             <User size={20} />
             <span style={styles.userName}>{userName}</span>
           </div>
+          {onNavigateToProfile && (
+            <button
+              style={styles.profileButton}
+              onClick={onNavigateToProfile}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#2a2640';
+                e.currentTarget.style.borderColor = '#667eea';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#262335';
+                e.currentTarget.style.borderColor = '#2a2640';
+              }}
+              title="Ver perfil"
+            >
+              <UserCircle size={20} />
+            </button>
+          )}
           <button
             style={styles.logoutButton}
             onClick={handleLogout}

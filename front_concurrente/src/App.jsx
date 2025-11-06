@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import Login from './movie_recomend/login/login'
 import Dashboard from './movie_recomend/user_dashboard/dashboard'
+import Profile from './movie_recomend/user_dashboard/profile'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [currentView, setCurrentView] = useState('dashboard') // 'dashboard' o 'profile'
 
   // Verificar si hay una sesión guardada al cargar la app
   useEffect(() => {
@@ -22,10 +24,14 @@ function App() {
     localStorage.removeItem('isAuthenticated')
     localStorage.removeItem('userEmail')
     setIsAuthenticated(false)
+    setCurrentView('dashboard')
   }
 
   if (isAuthenticated) {
-    return <Dashboard onLogout={handleLogout} />
+    if (currentView === 'profile') {
+      return <Profile onBack={() => setCurrentView('dashboard')} />
+    }
+    return <Dashboard onLogout={handleLogout} onNavigateToProfile={() => setCurrentView('profile')} />
   }
 
   return <Login onLoginSuccess={handleLoginSuccess} />
