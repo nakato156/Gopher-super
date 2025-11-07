@@ -83,7 +83,7 @@ func (s *Server) Start(addr string) error {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			msg := fmt.Sprintf("error", "[SERVER] Error al aceptar conexión:%v", err)
+			msg := fmt.Sprintf("[SERVER] Error al aceptar conexión:%v", err)
 			styles.PrintFS("error", msg)
 			continue
 		}

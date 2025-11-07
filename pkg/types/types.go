@@ -67,3 +67,14 @@ type Envelope struct {
 	WorkerID string
 	Msg      Message
 }
+
+// HTTP
+type UserRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
+}
+
+type UserResponse struct {
+	UserID string `json:"user_id"`
+	Token  string `json:"token"`
+}

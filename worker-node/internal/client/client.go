@@ -1,12 +1,14 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"goflix/pkg/tcp"
 	"goflix/pkg/types"
 	"net"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -28,6 +30,7 @@ type WorkerClient struct {
 	Busy        bool        // ocupación local (equivalente a “idle/busy”)
 	CurrentTask *types.Task // nil si no hay trabajo
 	LastSeen    time.Time   // para métricas/timeouts
+	connMu      sync.Mutex
 }
 
 var payload struct {
@@ -91,4 +94,70 @@ func (wc *WorkerClient) HandShake(conn net.Conn) (string, error) {
 	wc.State = StReady
 	wc.LastSeen = time.Now()
 	return wc.ID, nil
+}
+
+func (wc *WorkerClient) sendMessage(msg types.Message) error {
+	wc.connMu.Lock()
+	defer wc.connMu.Unlock()
+
+	if wc.Conn == nil {
+		return errors.New("worker client: conexión no inicializada")
+	}
+
+	return tcp.WriteMessage(wc.Conn, msg)
+}
+
+func (wc *WorkerClient) StartHeartbeat(ctx context.Context, interval time.Duration) error {
+	if wc.ID == "" {
+		return errors.New("heartbeat: worker sin ID asignado")
+	}
+
+	if wc.Conn == nil {
+		return errors.New("heartbeat: conexión no disponible")
+	}
+
+	if interval <= 0 {
+		interval = 5 * time.Second
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			hb := types.Heartbeat{
+				WorkerID: wc.ID,
+				Busy:     wc.Busy,
+				CPU:      0,
+			}
+
+			data, err := json.Marshal(hb)
+			if err != nil {
+				return err
+			}
+
+			msg := types.Message{Type: "HEARTBEAT", Data: data}
+
+			if err := wc.sendMessage(msg); err != nil {
+				wc.State = StDisconnected
+				return err
+			}
+
+			wc.LastSeen = time.Now()
+		}
+	}
+}
+
+func (wc *WorkerClient) Process(ctx context.Context) error {
+	if wc.ID == "" {
+		return errors.New("Worker sin ID asignado")
+	}
+
+	if wc.Conn == nil {
+		return errors.New("Worker sin conexion")
+	}
+	return nil
 }
