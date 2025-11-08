@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"goflix/api-coordinator/internal/cache"
+	cache "goflix/api-coordinator/internal/plattform"
 	"goflix/pkg/styles"
 	"goflix/pkg/tcp"
 	"goflix/pkg/types"

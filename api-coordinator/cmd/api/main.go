@@ -1,12 +1,15 @@
 package main
 
 import (
+	httpserver "goflix/api-coordinator/internal/http"
 	"goflix/api-coordinator/internal/tcpserver"
 	"log"
 	"os"
 )
 
 func main() {
+	go httpserver.NewRouter()
+
 	server := tcpserver.NewServer()
 	go func() {
 		for env := range server.Incoming {

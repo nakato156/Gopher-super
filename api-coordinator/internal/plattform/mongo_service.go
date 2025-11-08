@@ -1,4 +1,4 @@
-package database
+package plattform
 
 import (
 	"context"
@@ -76,7 +76,7 @@ func (s *MongoService) UpdateOne(ctx context.Context, dbName, collName string, f
 	return coll.UpdateOne(ctx, filter, update)
 }
 
-// Disconnect closes the MongoDB client connection.
-func (s *MongoService) Disconnect(ctx context.Context) error {
-	return s.client.Disconnect(ctx)
+// GetCollection returns a handle to the requested collection.
+func (s *MongoService) GetCollection(dbName, collName string) *mongo.Collection {
+	return s.client.Database(dbName).Collection(collName)
 }
