@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -24,13 +25,14 @@ func NewService(repo Repository, tokens TokenManager) Service {
 }
 
 func (s *service) Register(ctx context.Context, email, password string) (string, string, error) {
-	// ¿Ya existe?
+	fmt.Println("Registering user with email:", email)
 	if _, err := s.repo.GetByEmail(ctx, email); err == nil {
 		return "", "", ErrUserAlreadyExists
-	} else if err != nil && err != ErrUserNotFound {
+	} else if err != ErrUserNotFound {
 		return "", "", err
 	}
 
+	fmt.Println("No existing user found with email:", email)
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return "", "", err
@@ -50,7 +52,7 @@ func (s *service) Register(ctx context.Context, email, password string) (string,
 	if err != nil {
 		return "", "", err
 	}
-
+	fmt.Printf("User registered with ID: %s\n", u.ID.Hex())
 	return u.ID.Hex(), token, nil
 }
 

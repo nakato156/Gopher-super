@@ -24,7 +24,9 @@ func NewClient(ctx context.Context) (*MongoService, error) {
 		return nil, fmt.Errorf("%w", ErrMissingMongoURI)
 	}
 
-	client, err := mongo.Connect(options.Client().ApplyURI(uri))
+	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
+	opt := options.Client().ApplyURI(uri).SetServerAPIOptions(serverAPI)
+	client, err := mongo.Connect(opt)
 	if err != nil {
 		return nil, fmt.Errorf("database: connect: %w", err)
 	}
