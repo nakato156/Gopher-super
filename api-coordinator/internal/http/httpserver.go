@@ -26,7 +26,7 @@ func NewRouter() *gin.Engine {
 	}
 
 	// conect with mongo
-	dbName := "goflixx"
+	dbName := os.Getenv("MONGO_DB_NAME")
 	usersColl := mongoClient.GetCollection(dbName, "users")
 	repo := auth.NewMongoRepository(usersColl)
 

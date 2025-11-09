@@ -8,8 +8,8 @@ services:
       dockerfile: api-coordinator/Dockerfile
     env_file: ./deploy/env/api.env
     ports:
-      - "8000:80"
-      - "9090:9000"
+      - "8000:80"   #HTTP
+      - "9090:9000" #TCP
     environment:
       COORDINATOR_ADDR: ":9000"
     depends_on:
@@ -41,23 +41,6 @@ services:
     restart: unless-stopped
     networks:
       - internal
-
-  mongo:
-    image: mongo:8.0
-    command: ["mongod", "--bind_ip_all"]
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
-      MONGO_INITDB_DATABASE: default
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-    restart: unless-stopped
-    networks:
-      internal:
-        aliases:
-          - mongo 
 
   redis:
     image: redis:7

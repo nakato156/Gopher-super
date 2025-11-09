@@ -159,5 +159,6 @@ func (wc *WorkerClient) Process(ctx context.Context) error {
 	if wc.Conn == nil {
 		return errors.New("Worker sin conexion")
 	}
+	// calculo de cosine similarity
 	return nil
 }
