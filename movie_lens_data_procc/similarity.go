@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -25,8 +26,6 @@ const (
 	minCoRatings   = 2   // mínimo de usuarios en común para considerar similitud
 	userBatchSize  = 200 // tamaño de lote por worker
 )
-
-// ---------- Tipos básicos ----------
 
 type Rating struct {
 	UserID  int
@@ -53,7 +52,17 @@ func (h *NeighborHeap) Pop() interface{} {
 	return x
 }
 
-// ---------- Carga de datos ----------
+func makeKey(i, j int) uint64 {
+	if i > j {
+		i, j = j, i
+	}
+	return (uint64(uint32(i)) << 32) | uint64(uint32(j))
+}
+func splitKey(k uint64) (int, int) {
+	i := int(int32(k >> 32))
+	j := int(int32(k & 0xffffffff))
+	return i, j
+}
 
 func mustOpen(path string) *os.File {
 	f, err := os.Open(path)
@@ -70,7 +79,6 @@ func loadRatings(path string) ([]Rating, error) {
 	r := csv.NewReader(bufio.NewReader(f))
 	r.FieldsPerRecord = -1
 
-	// saltar encabezado
 	if _, err := r.Read(); err != nil {
 		return nil, fmt.Errorf("leyendo encabezado ratings: %w", err)
 	}
@@ -124,10 +132,6 @@ func loadMovieTitles(path string) (map[int]string, error) {
 	return titles, nil
 }
 
-// ---------- Estructuras derivadas ----------
-
-// userRatings[u][i] = rating
-// itemUsers[i][u] = rating
 func buildIndexes(ratings []Rating) (map[int]map[int]float64, map[int]map[int]float64, []int, []int) {
 	userRatings := make(map[int]map[int]float64, 1000)
 	itemUsers := make(map[int]map[int]float64, 11000)
@@ -163,38 +167,24 @@ func buildIndexes(ratings []Rating) (map[int]map[int]float64, map[int]map[int]fl
 	return userRatings, itemUsers, users, items
 }
 
-// ---------- Construcción concurrente de similitudes ----------
-
 type partialAcc struct {
-	dot  map[int]map[int]float64 // dot[i][j] con i<j
-	co   map[int]map[int]int     // co-ratings
-	norm map[int]float64         // ||i||^2
+	dot  map[uint64]float64 // producto punto
+	co   map[uint64]int     // co-ratings
+	norm map[int]float64    // ||i||^2
 }
 
 func newPartialAcc() *partialAcc {
 	return &partialAcc{
-		dot:  make(map[int]map[int]float64),
-		co:   make(map[int]map[int]int),
-		norm: make(map[int]float64),
+		dot:  make(map[uint64]float64, 1<<12),
+		co:   make(map[uint64]int, 1<<12),
+		norm: make(map[int]float64, 1<<12),
 	}
 }
 
 func (p *partialAcc) addDot(i, j int, v float64) {
-	if i > j {
-		i, j = j, i
-	}
-	m, ok := p.dot[i]
-	if !ok {
-		m = make(map[int]float64)
-		p.dot[i] = m
-	}
-	m[j] += v
-	cm, ok := p.co[i]
-	if !ok {
-		cm = make(map[int]int)
-		p.co[i] = cm
-	}
-	cm[j]++
+	k := makeKey(i, j)
+	p.dot[k] += v
+	p.co[k]++
 }
 
 func (p *partialAcc) addNorm(i int, v float64) {
@@ -202,34 +192,19 @@ func (p *partialAcc) addNorm(i int, v float64) {
 }
 
 func mergeAcc(dst, src *partialAcc) {
-	for i, row := range src.dot {
-		dr, ok := dst.dot[i]
-		if !ok {
-			dr = make(map[int]float64, len(row))
-			dst.dot[i] = dr
-		}
-		for j, v := range row {
-			dr[j] += v
-		}
+	for k, v := range src.dot {
+		dst.dot[k] += v
 	}
-	for i, row := range src.co {
-		dr, ok := dst.co[i]
-		if !ok {
-			dr = make(map[int]int, len(row))
-			dst.co[i] = dr
-		}
-		for j, c := range row {
-			dr[j] += c
-		}
+	for k, c := range src.co {
+		dst.co[k] += c
 	}
 	for i, v := range src.norm {
 		dst.norm[i] += v
 	}
 }
 
-// worker: procesa un bloque de usuarios y acumula productos punto & normas
-func processUserBlock(users []int, userRatings map[int]map[int]float64) *partialAcc {
-	acc := newPartialAcc()
+// Procesa un bloque de usuarios y acumula en un partialAcc dado. Reutiliza buf para evitar allocs por usuario.
+func processUserBlock(acc *partialAcc, users []int, userRatings map[int]map[int]float64, buf []int) []int {
 	for _, u := range users {
 		ru := userRatings[u]
 		if len(ru) == 0 {
@@ -241,24 +216,29 @@ func processUserBlock(users []int, userRatings map[int]map[int]float64) *partial
 			acc.addNorm(i, r*r)
 		}
 
-		// pares de ítems del mismo usuario
-		// convertir a slice para índice estable
-		items := make([]int, 0, len(ru))
+		// items del usuario en buf[0:n]
+		n := 0
 		for i := range ru {
-			items = append(items, i)
+			if n < len(buf) {
+				buf[n] = i
+			} else {
+				buf = append(buf, i)
+			}
+			n++
 		}
-		sort.Ints(items)
-		for a := 0; a < len(items); a++ {
-			i := items[a]
+
+		// pares de ítems co-calificados por este usuario
+		for a := 0; a < n; a++ {
+			i := buf[a]
 			ri := ru[i]
-			for b := a + 1; b < len(items); b++ {
-				j := items[b]
+			for b := a + 1; b < n; b++ {
+				j := buf[b]
 				rj := ru[j]
 				acc.addDot(i, j, ri*rj)
 			}
 		}
 	}
-	return acc
+	return buf
 }
 
 func chunkInts(all []int, size int) [][]int {
@@ -277,91 +257,107 @@ type SimRow map[int]float64          // vecinos j -> sim(i,j)
 type SimMatrix map[int]SimRow        // i -> (j->sim)
 type NeighborList map[int][]Neighbor // i -> topK vecinos
 
-func buildSimilaritiesConcurrent(userRatings map[int]map[int]float64) (SimMatrix, map[int]float64) {
+func buildSimilaritiesConcurrent(userRatings map[int]map[int]float64, workerCount int) (SimMatrix, map[int]float64) {
+	if workerCount < 1 {
+		workerCount = 1
+	}
+
 	users := make([]int, 0, len(userRatings))
 	for u := range userRatings {
 		users = append(users, u)
 	}
 	sort.Ints(users)
 
-	blocks := chunkInts(users, userBatchSize)
+	cpus := runtime.NumCPU()
+	targetBlocks := cpus * 8
+	if targetBlocks < workerCount {
+		targetBlocks = workerCount
+	}
+	if targetBlocks < 16 {
+		targetBlocks = 16
+	}
+	batch := (len(users) + targetBlocks - 1) / targetBlocks
+	if batch < 10 {
+		batch = 10
+	}
+	blocks := chunkInts(users, batch)
 
-	// Fan-out workers -> producen parciales
-	// combiner único fusiona
-	workerCount := runtime.NumCPU()
+	// Lanza workers con su partialAcc local
 	workCh := make(chan []int)
-	partCh := make(chan *partialAcc, workerCount*2)
+	partCh := make(chan *partialAcc, workerCount)
+
 	var wg sync.WaitGroup
+	wg.Add(workerCount)
 
-	combinerDone := make(chan struct{})
-	global := newPartialAcc()
+	for w := 0; w < workerCount; w++ {
+		go func() {
+			defer wg.Done()
+			local := newPartialAcc()
+			buf := make([]int, 0, 64)
+			for blk := range workCh {
+				buf = processUserBlock(local, blk, userRatings, buf)
+			}
+			partCh <- local
+		}()
+	}
 
-	// combiner
 	go func() {
-		for p := range partCh {
-			mergeAcc(global, p)
+		for _, blk := range blocks {
+			workCh <- blk
 		}
-		close(combinerDone)
+		close(workCh)
+		wg.Wait()
+		close(partCh)
 	}()
 
-	// workers
-	worker := func() {
-		defer wg.Done()
-		for blk := range workCh {
-			p := processUserBlock(blk, userRatings)
-			partCh <- p
+	// Merge de todos los parciales en uno global
+	global := newPartialAcc()
+	for p := range partCh {
+		mergeAcc(global, p)
+	}
+
+	// Precomputar normas (sqrt)
+	norms := make(map[int]float64, len(global.norm))
+	for i, sum := range global.norm {
+		if sum > 0 {
+			norms[i] = math.Sqrt(sum)
 		}
 	}
-	wg.Add(workerCount)
-	for w := 0; w < workerCount; w++ {
-		go worker()
-	}
 
-	// alimentar trabajos
-	for _, blk := range blocks {
-		workCh <- blk
-	}
-	close(workCh)
+	// Construir SimMatrix secuencialmente
+	sim := make(SimMatrix, 1<<12)
 
-	wg.Wait()
-	close(partCh)
-	<-combinerDone
-
-	// convertir a similitudes coseno con filtro por co-ratings
-	sim := make(SimMatrix, len(global.dot))
-	for i, row := range global.dot {
-		ni := math.Sqrt(global.norm[i])
-		if ni == 0 {
+	for k, dot := range global.dot {
+		co := global.co[k]
+		if co < minCoRatings {
 			continue
 		}
-		for j, dot := range row {
-			if global.co[i][j] < minCoRatings {
-				continue
-			}
-			nj := math.Sqrt(global.norm[j])
-			if nj == 0 {
-				continue
-			}
-			val := dot / (ni * nj)
-			if val == 0 {
-				continue
-			}
-			if sim[i] == nil {
-				sim[i] = make(map[int]float64)
-			}
-			if sim[j] == nil {
-				sim[j] = make(map[int]float64)
-			}
-			sim[i][j] = val
-			sim[j][i] = val
+		i, j := splitKey(k)
+		ni := norms[i]
+		nj := norms[j]
+		if ni == 0 || nj == 0 {
+			continue
 		}
+		val := dot / (ni * nj)
+		if val == 0 {
+			continue
+		}
+
+		rowI := sim[i]
+		if rowI == nil {
+			rowI = make(SimRow)
+			sim[i] = rowI
+		}
+		rowI[j] = val
+
+		rowJ := sim[j]
+		if rowJ == nil {
+			rowJ = make(SimRow)
+			sim[j] = rowJ
+		}
+		rowJ[i] = val
 	}
 
-	// devolvemos normas
-	norms := make(map[int]float64, len(global.norm))
-	for i, s := range global.norm {
-		norms[i] = math.Sqrt(s)
-	}
 	return sim, norms
 }
 
@@ -377,20 +373,19 @@ func topKNeighbors(sim SimMatrix, k int) NeighborList {
 			}
 			if h.Len() < k {
 				heap.Push(h, Neighbor{Item: j, Sim: s})
-			} else if k > 0 && s > (*h)[0].Sim {
+			} else if s > (*h)[0].Sim {
 				heap.Pop(h)
 				heap.Push(h, Neighbor{Item: j, Sim: s})
 			}
 		}
-		// volcar en orden descendente
 		n := h.Len()
 		buf := make([]Neighbor, n)
-		for idx := n - 1; idx >= 0; idx-- {
+		for idx := 0; idx < n; idx++ {
 			buf[idx] = heap.Pop(h).(Neighbor)
 		}
 
-		// se inverte para descendente
-		for l, r := 0, len(buf)-1; l < r; l, r = l+1, r-1 {
+		// invertimos -> mayor a menor
+		for l, r := 0, n-1; l < r; l, r = l+1, r-1 {
 			buf[l], buf[r] = buf[r], buf[l]
 		}
 		out[i] = buf
@@ -481,10 +476,61 @@ func safeTitle(s string) string {
 	return s
 }
 
+type benchRow struct {
+	Workers int
+	Millis  int64
+	Speedup float64
+}
+
+func benchmarkWorkers(userRatings map[int]map[int]float64) ([]benchRow, int) {
+	// GOMAXPROCS = NumCPU
+	// para que > NumCPU workers muestren overhead
+	cpus := runtime.NumCPU()
+	runtime.GOMAXPROCS(cpus)
+
+	maxWorkers := 4 * cpus
+
+	// ejecutamos con workers de 1 - 2*CPU
+	results := make([]benchRow, 0, maxWorkers)
+
+	// baseline con 1 worker
+	start := time.Now()
+	_, _ = buildSimilaritiesConcurrent(userRatings, 1)
+	baseMs := time.Since(start).Milliseconds()
+	if baseMs == 0 {
+		baseMs = 1
+	}
+	results = append(results, benchRow{Workers: 1, Millis: baseMs, Speedup: 1.0})
+
+	// resto
+	bestIdx := 0
+	bestMs := baseMs
+	for w := 2; w <= maxWorkers; w++ {
+		t0 := time.Now()
+		_, _ = buildSimilaritiesConcurrent(userRatings, w)
+		ms := time.Since(t0).Milliseconds()
+		sp := float64(baseMs) / float64(ms)
+		results = append(results, benchRow{Workers: w, Millis: ms, Speedup: sp})
+		if ms < bestMs {
+			bestMs = ms
+			bestIdx = len(results) - 1
+		}
+	}
+	return results, results[bestIdx].Workers
+}
+
+func printBench(results []benchRow) {
+	fmt.Println("\n=== Benchmark de goroutines para cálculo de similitudes ===")
+	fmt.Printf("GOMAXPROCS = %d (NumCPU)\n", runtime.NumCPU())
+	fmt.Printf("%8s  %12s  %8s\n", "workers", "ms", "speedup")
+	for _, r := range results {
+		fmt.Printf("%8d  %12d  %8.2f\n", r.Workers, r.Millis, r.Speedup)
+	}
+}
+
 func main() {
 	fmt.Println("GoFlix · Item-based CF (cosine) · concurrente en un solo nodo")
 
-	// 1) Cargar datos
 	rPath := filepath.Join(dataDir, ratingsFile)
 	mPath := filepath.Join(dataDir, moviesFile)
 
@@ -504,22 +550,26 @@ func main() {
 	userRatings, _, users, _ := buildIndexes(ratings)
 	fmt.Printf("Usuarios: %d, Ratings: %d\n", len(users), len(ratings))
 
-	// Similitudes concurrentes
-	fmt.Println("Calculando similitudes coseno (concurrente)…")
-	sim, _ := buildSimilaritiesConcurrent(userRatings)
+	// Benchmark de paralelismo (solo similitudes)
+	results, bestWorkers := benchmarkWorkers(userRatings)
+	printBench(results)
+	fmt.Printf("\nMejor configuración observada: %d workers\n", bestWorkers)
+
+	// Construir similitudes y vecindades con la mejor configuración
+	fmt.Println("\nReconstruyendo similitudes con la mejor configuración…")
+	sim, _ := buildSimilaritiesConcurrent(userRatings, bestWorkers)
 	fmt.Printf("Ítems con vecindad calculada: %d\n", len(sim))
 
-	// Top-K vecinos por ítem
 	fmt.Printf("Seleccionando top-%d vecinos por ítem…\n", topKNeighborsN)
 	nbrs := topKNeighbors(sim, topKNeighborsN)
 
-	// elegir el primer usuario y recomendar
+	// recomendar a un usuario
 	if len(users) == 0 {
 		fmt.Println("No hay usuarios.")
 		return
 	}
 	demoUser := users[0]
-	fmt.Printf("Ejemplo de recomendaciones para el usuario %d\n", demoUser)
+	fmt.Printf("\nEjemplo de recomendaciones para el usuario %d\n", demoUser)
 	recs := recommendTopN(demoUser, 10, userRatings, nbrs, titles)
 	if len(recs) == 0 {
 		fmt.Println("No se pudieron generar recomendaciones para el usuario de ejemplo.")
@@ -527,8 +577,7 @@ func main() {
 	}
 	fmt.Println(humanList(recs))
 
-	// predecir rating de una película no vista (si existe)
-	// se toma la primera recomendación como candidata.
+	// Predicción de una película candidata
 	if len(recs) > 0 {
 		item := recs[0].MovieID
 		if p, ok := predictForUserItem(demoUser, item, userRatings, nbrs); ok {
