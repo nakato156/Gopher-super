@@ -54,10 +54,12 @@ func main() {
 	taskDone := make(chan error, 1)
 
 	go func() {
+		styles.PrintFS("info", "[WORKER] Heartbeat iniciado")
 		heartbeatDone <- worker.StartHeartbeat(ctx, heartbeatInterval)
 	}()
 
 	go func() {
+		styles.PrintFS("info", "[WORKER] Esperando tareas")
 		taskDone <- worker.Process(ctx)
 	}()
 
@@ -66,11 +68,20 @@ func main() {
 		if err != nil && !errors.Is(err, context.Canceled) {
 			styles.PrintFS("error", fmt.Sprintf("[WORKER] Heartbeat detenido: %v", err))
 		}
-	case <-ctx.Done():
 		cancel()
-		if err := <-heartbeatDone; err != nil && !errors.Is(err, context.Canceled) {
-			styles.PrintFS("error", fmt.Sprintf("[WORKER] Heartbeat detenido: %v", err))
+	case err := <-taskDone:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			styles.PrintFS("error", fmt.Sprintf("[WORKER] Proceso detenido: %v", err))
 		}
+		cancel()
+	case <-ctx.Done():
 		styles.PrintFS("info", "[WORKER] Señal recibida, cerrando worker")
+	}
+
+	if err := <-heartbeatDone; err != nil && !errors.Is(err, context.Canceled) {
+		styles.PrintFS("error", fmt.Sprintf("[WORKER] Heartbeat detenido: %v", err))
+	}
+	if err := <-taskDone; err != nil && !errors.Is(err, context.Canceled) {
+		styles.PrintFS("error", fmt.Sprintf("[WORKER] Proceso detenido: %v", err))
 	}
 }

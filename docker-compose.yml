@@ -10,10 +10,11 @@ services:
     ports:
       - "8000:80"   #HTTP
       - "9090:9000" #TCP
+    volumes:
+      - ./dataset:/app/dataset:ro
     environment:
       COORDINATOR_ADDR: ":9000"
     depends_on:
-      - mongo
       - redis
     restart: unless-stopped
     networks:

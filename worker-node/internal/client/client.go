@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"goflix/pkg/styles"
 	"goflix/pkg/tcp"
 	"goflix/pkg/types"
 	"net"
@@ -153,12 +154,64 @@ func (wc *WorkerClient) StartHeartbeat(ctx context.Context, interval time.Durati
 
 func (wc *WorkerClient) Process(ctx context.Context) error {
 	if wc.ID == "" {
+		styles.PrintFS("error", "[WORKER] Worker sin ID asignado")
 		return errors.New("Worker sin ID asignado")
 	}
 
 	if wc.Conn == nil {
+		styles.PrintFS("error", "[WORKER] Worker sin conexion")
 		return errors.New("Worker sin conexion")
 	}
-	// calculo de cosine similarity
-	return nil
+
+	// Calculo de cosine similarity
+	// leer mensajes en un loop y si es un TASK, procesarlo
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			msg, err := tcp.ReadMessage(wc.Conn)
+			if err != nil {
+				styles.PrintFS("error", "[WORKER] Error leyendo mensaje:")
+				// skip
+				continue
+			}
+
+			styles.PrintFS("log", "Empezando tarea")
+			if msg.Type == "TASK" {
+				time.Sleep(600 * time.Millisecond)
+
+				// parsear msg como Task
+				var task types.Task
+				if err := json.Unmarshal(msg.Data, &task); err != nil {
+					styles.PrintFS("error", "[WORKER] Error al parsear TASK")
+					continue
+				}
+
+				styles.PrintFS("info", "[WORKER] Procesando TASK "+task.JobID)
+
+				// enviar RESULT
+				result := types.Result{
+					JobID:   task.JobID,
+					BlockID: task.BlockID,
+					Neighbors: []types.Neighbor{
+						{ID: "item1", Similarity: 0.9},
+						{ID: "item2", Similarity: 0.8},
+					},
+				}
+				data, err := json.Marshal(result)
+				if err != nil {
+					styles.PrintFS("error", "[WORKER] Error al hacer Marshall")
+					return err
+				}
+
+				resultMsg := types.Message{Type: "RESULT", Data: data}
+				if err := wc.sendMessage(resultMsg); err != nil {
+					styles.PrintFS("error", "[WORKER] Error al enviar RESULT")
+					return err
+				}
+			}
+		}
+	}
 }

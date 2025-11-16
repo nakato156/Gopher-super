@@ -4,6 +4,9 @@ import (
 	"context"
 	"log"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"goflix/api-coordinator/internal/auth"
 	"goflix/api-coordinator/internal/plattform"
@@ -12,17 +15,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter() *gin.Engine {
+const (
+	defaultMongoRetryInterval = 15 * time.Second
+)
+
+func NewRouter(ctx context.Context) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
-	// platform services
-	ctx := context.Background()
-	mongoClient, err := plattform.NewClient(ctx)
-	if err != nil {
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
+	mongoClient := connectMongoWithRetry(ctx)
+	if mongoClient == nil {
+		log.Print(styles.SprintfS("error", "[HTTP] No se iniciará el servidor HTTP porque no se pudo conectar a MongoDB"))
+		return r
 	}
 
 	// conect with mongo
@@ -56,4 +62,66 @@ func NewRouter() *gin.Engine {
 	}
 
 	return r
+}
+
+func connectMongoWithRetry(ctx context.Context) *plattform.MongoService {
+	interval := mongoRetryInterval()
+	maxRetries := mongoMaxRetries()
+	attempt := 0
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("[HTTP] Context cancelado antes de conectar a MongoDB: %v", ctx.Err())
+			return nil
+		default:
+		}
+
+		attempt++
+		client, err := plattform.NewClient(ctx)
+		if err == nil {
+			if attempt > 1 {
+				log.Printf("[HTTP] Conexión a MongoDB exitosa tras %d intentos", attempt)
+			}
+			return client
+		}
+
+		log.Printf("[HTTP] Error conectando a MongoDB (intento %d): %v", attempt, err)
+		if maxRetries > 0 && attempt >= maxRetries {
+			log.Printf("[HTTP] Alcanzado el máximo de intentos (%d) sin éxito", maxRetries)
+			return nil
+		}
+
+		select {
+		case <-time.After(interval):
+		case <-ctx.Done():
+			log.Printf("[HTTP] Context cancelado mientras se esperaba para reintentar: %v", ctx.Err())
+			return nil
+		}
+	}
+}
+
+func mongoRetryInterval() time.Duration {
+	val := strings.TrimSpace(os.Getenv("MONGO_RETRY_INTERVAL"))
+	if val == "" {
+		return defaultMongoRetryInterval
+	}
+	if d, err := time.ParseDuration(val); err == nil {
+		return d
+	}
+	log.Printf("[HTTP] Intervalo inválido para MONGO_RETRY_INTERVAL (%s), usando %s", val, defaultMongoRetryInterval)
+	return defaultMongoRetryInterval
+}
+
+func mongoMaxRetries() int {
+	val := strings.TrimSpace(os.Getenv("MONGO_MAX_RETRIES"))
+	if val == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil || n < 0 {
+		log.Printf("[HTTP] Valor inválido para MONGO_MAX_RETRIES (%s), usando ilimitado", val)
+		return 0
+	}
+	return n
 }

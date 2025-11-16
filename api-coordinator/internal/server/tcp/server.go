@@ -31,7 +31,7 @@ type Server struct {
 	listener net.Listener
 	Workers  map[string]*Worker
 	Incoming chan types.Envelope
-	mu       sync.RWMutex
+	Mu       sync.RWMutex
 }
 
 const (
@@ -97,6 +97,20 @@ func (s *Server) Start(addr string) error {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
+	defer func() {
+		s.Mu.Lock()
+		for id, w := range s.Workers {
+			if w.Conn == conn {
+				close(w.SendCh)
+				delete(s.Workers, id)
+				msg := fmt.Sprintf("[SERVER] Worker desconectado: %s", id)
+				styles.PrintFS("warning", msg)
+				break
+			}
+		}
+		s.Mu.Unlock()
+	}()
+
 	reader := bufio.NewReader(conn)
 
 	for {
@@ -148,15 +162,18 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 			now := time.Now()
 			// Registrar el worker
-			s.mu.Lock()
-			s.Workers[workerID] = &Worker{
+			s.Mu.Lock()
+			worker := &Worker{
 				ID:       workerID,
 				Conn:     conn,
 				State:    types.WorkerIdle,
 				LastSeen: now,
 				SendCh:   make(chan types.Message, 10),
 			}
-			s.mu.Unlock()
+			s.Workers[workerID] = worker
+			s.Mu.Unlock()
+
+			go s.sendLoop(worker)
 
 			s.registerWorkerInRedis(workerID, hello.Concurrency, conn.RemoteAddr().String(), now)
 
@@ -166,14 +183,14 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		// Si el worker ya está en el mapa, usa su ID
 		if workerID == "" {
-			s.mu.RLock()
+			s.Mu.RLock()
 			for id, w := range s.Workers {
 				if w.Conn == conn {
 					workerID = id
 					break
 				}
 			}
-			s.mu.RUnlock()
+			s.Mu.RUnlock()
 		}
 
 		if workerID == "" {
@@ -181,10 +198,48 @@ func (s *Server) handleConnection(conn net.Conn) {
 			continue
 		}
 
+		if msg.Type == "HEARTBEAT" {
+			s.handleHeartbeat(workerID, msg.Data)
+			continue
+		}
+
 		// Enviar mensaje al canal global
 		s.Incoming <- types.Envelope{
 			WorkerID: workerID,
 			Msg:      msg,
+		}
+	}
+}
+
+func (s *Server) handleHeartbeat(workerID string, data json.RawMessage) {
+	var hb types.Heartbeat
+	if err := json.Unmarshal(data, &hb); err != nil {
+		logMsg := fmt.Sprintf("[SERVER] Error parseando HEARTBEAT de %s: %v", workerID, err)
+		styles.PrintFS("error", logMsg)
+		return
+	}
+
+	s.Mu.Lock()
+	if worker, ok := s.Workers[workerID]; ok {
+		worker.LastSeen = time.Now()
+		if hb.Busy {
+			worker.State = types.WorkerBusy
+		} else {
+			worker.State = types.WorkerIdle
+		}
+	}
+	s.Mu.Unlock()
+
+	msg := fmt.Sprintf("[SERVER] Heartbeat recibido de %s (busy=%v)", workerID, hb.Busy)
+	styles.PrintFS("info", msg)
+}
+
+func (s *Server) sendLoop(worker *Worker) {
+	for msg := range worker.SendCh {
+		if err := tcp.WriteMessage(worker.Conn, msg); err != nil {
+			logMsg := fmt.Sprintf("[SERVER] Error enviando mensaje a %s: %v", worker.ID, err)
+			styles.PrintFS("error", logMsg)
+			return
 		}
 	}
 }
