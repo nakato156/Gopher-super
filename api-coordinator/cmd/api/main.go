@@ -1,8 +1,8 @@
 package main
 
 import (
-	httpserver "goflix/api-coordinator/internal/http"
-	"goflix/api-coordinator/internal/tcpserver"
+	httpserver "goflix/api-coordinator/internal/server/http"
+	tcpserver "goflix/api-coordinator/internal/server/tcp"
 	"log"
 	"os"
 )
