@@ -10,6 +10,7 @@ import (
 
 	"goflix/api-coordinator/internal/auth"
 	"goflix/api-coordinator/internal/plattform"
+	"goflix/api-coordinator/internal/recommend"
 	"goflix/pkg/styles"
 
 	"github.com/gin-gonic/gin"
@@ -49,6 +50,17 @@ func NewRouter(ctx context.Context) *gin.Engine {
 	api := r.Group("/api")
 	authGroup := api.Group("/auth")
 	handler.RegisterRoutes(authGroup)
+
+	// Also expose auth routes at root so /login and /register are available
+	handler.RegisterRoutes(r.Group("/"))
+
+	// Register recommend routes (mock service initially)
+	recSvc := recommend.NewService()
+	recHandler := recommend.NewHandler(recSvc)
+
+	// Register under /api/recomend and also at root /recomend
+	recHandler.RegisterRoutes(api.Group("/recomend"))
+	recHandler.RegisterRoutes(r.Group("/recomend"))
 
 	// Escuchar en todas las interfaces del contenedor
 	addr := os.Getenv("HTTP_ADDR")
