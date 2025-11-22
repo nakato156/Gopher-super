@@ -12,6 +12,7 @@ import (
 	"goflix/api-coordinator/internal/plattform"
 	"goflix/api-coordinator/internal/recommend"
 	"goflix/pkg/styles"
+	"goflix/pkg/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,7 +21,7 @@ const (
 	defaultMongoRetryInterval = 15 * time.Second
 )
 
-func NewRouter(ctx context.Context) *gin.Engine {
+func NewRouter(ctx context.Context, dispatchTrigger func(int) ([]types.Result, error)) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Logger())
@@ -55,7 +56,7 @@ func NewRouter(ctx context.Context) *gin.Engine {
 	handler.RegisterRoutes(r.Group("/"))
 
 	// Register recommend routes (mock service initially)
-	recSvc := recommend.NewService()
+	recSvc := recommend.NewService(dispatchTrigger)
 	recHandler := recommend.NewHandler(recSvc)
 
 	// Register under /api/recomend and also at root /recomend
