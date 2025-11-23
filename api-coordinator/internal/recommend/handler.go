@@ -22,8 +22,8 @@ func (h *Handler) RegisterRoutes(g *gin.RouterGroup) {
 }
 
 type recommendRequest struct {
-	UserID string `json:"user_id" binding:"required"`
-	TopN   int    `json:"top_n"`
+	UserID int `json:"user_id" binding:"required"`
+	TopN   int `json:"top_n"`
 }
 
 func (h *Handler) Recommend(c *gin.Context) {

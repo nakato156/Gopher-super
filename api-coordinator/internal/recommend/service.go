@@ -1,23 +1,35 @@
 package recommend
 
+import (
+	"goflix/pkg/types"
+)
+
 // Service defines the contract for recommendation logic. For now we provide
 // a simple mock implementation that returns deterministic fake IDs. Later
 // this should call the recommendation engine / workers or query precomputed
 // models in the database.
 type Service interface {
-	RecommendForUser(userID string, topN int) ([]string, error)
+	RecommendForUser(userID int, topN int) ([]types.Result, error)
 }
 
-type mockService struct{}
+type DispatchFunc func(int, int) ([]types.Result, error)
 
-func NewService() Service {
-	return &mockService{}
+type recomendService struct {
+	dispatch DispatchFunc
 }
 
-func (m *mockService) RecommendForUser(userID string, topN int) ([]string, error) {
-	res := make([]string, 0, topN)
-	for i := 0; i < topN; i++ {
-		res = append(res, "movie_"+userID+"_"+string(rune('0'+(i%10))))
+func NewService(dispatch DispatchFunc) Service {
+	return &recomendService{dispatch: dispatch}
+}
+
+func (m *recomendService) RecommendForUser(userID int, topN int) ([]types.Result, error) {
+	if m.dispatch != nil {
+		results, err := m.dispatch(userID, topN)
+		if err != nil {
+			return nil, err
+		}
+		return results, nil
 	}
-	return res, nil
+
+	return nil, nil
 }

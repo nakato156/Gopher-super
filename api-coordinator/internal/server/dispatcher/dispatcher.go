@@ -19,16 +19,14 @@ type (
 
 type Dispatcher struct {
 	server       *tcpserver.Server
-	results      chan<- Result // para merger
 	timeouts     time.Duration
 	resultsChans map[string]chan types.Result
 	mu           sync.Mutex
 }
 
-func New(server *tcpserver.Server, results chan<- Result, timeout time.Duration) *Dispatcher {
+func New(server *tcpserver.Server, timeout time.Duration) *Dispatcher {
 	d := &Dispatcher{
 		server:       server,
-		results:      results,
 		timeouts:     timeout,
 		resultsChans: make(map[string]chan types.Result),
 	}
@@ -36,7 +34,7 @@ func New(server *tcpserver.Server, results chan<- Result, timeout time.Duration)
 	return d
 }
 
-func (d *Dispatcher) Run(ctx context.Context, userID int, userRatings map[int]map[int]float64) {
+func (d *Dispatcher) Run(ctx context.Context, userID int, userRatings map[int]map[int]float64, topN int, resultsCh chan<- Result) (int, error) {
 	fmt.Println("Dispatcher Run started for userID:", userID)
 	if d.resultsChans == nil {
 		d.resultsChans = make(map[string]chan types.Result)
@@ -54,7 +52,7 @@ func (d *Dispatcher) Run(ctx context.Context, userID int, userRatings map[int]ma
 
 	if len(idleWorkers) == 0 {
 		fmt.Println("No idle workers, returning")
-		return
+		return 0, nil
 	}
 
 	userIDs := make([]int, 0, len(userRatings)-1)
@@ -76,18 +74,32 @@ func (d *Dispatcher) Run(ctx context.Context, userID int, userRatings map[int]ma
 
 	// jobID := uuid.New().String()
 	startIdx := 0
+	dispatchedCount := 0
+
+	targetRatings := userRatings[userID]
+
 	for i := 0; i < numBlocks; i++ {
 		endIdx := startIdx + blockSize
 		if i < remainder {
 			endIdx++
 		}
 		workerID := idleWorkers[i]
+
+		// Extract candidate ratings for this block
+		candidateRatings := make(map[int]map[int]float64)
+		// The block is defined by startIdx and endIdx in the userIDs slice
+		// userIDs contains the IDs of all candidates
+		currentBlockIDs := userIDs[startIdx:endIdx]
+		for _, id := range currentBlockIDs {
+			candidateRatings[id] = userRatings[id]
+		}
+
 		task := types.Task{
-			JobID:   workerID,
-			BlockID: types.Block{StartID: startIdx, EndID: endIdx - 1},
-			Algo:    "user-based",
-			Sim:     "cosine",
-			K:       30,
+			JobID:            workerID,
+			BlockID:          types.Block{StartID: startIdx, EndID: endIdx - 1},
+			K:                topN,
+			TargetRatings:    targetRatings,
+			CandidateRatings: candidateRatings,
 		}
 		fmt.Println("Creando tarea para worker", workerID, "con block StartID:", startIdx, "EndID:", endIdx-1)
 		ch := make(chan types.Result, 1)
@@ -116,7 +128,7 @@ func (d *Dispatcher) Run(ctx context.Context, userID int, userRatings map[int]ma
 			select {
 			case res := <-c:
 				fmt.Println("Recibido resultado para job", jID, "en worker", wID)
-				d.results <- res
+				resultsCh <- res
 				d.server.Mu.Lock()
 				d.server.Workers[wID].State = types.WorkerIdle
 				d.server.Mu.Unlock()
@@ -133,7 +145,9 @@ func (d *Dispatcher) Run(ctx context.Context, userID int, userRatings map[int]ma
 		}(workerID, ch, workerID)
 
 		startIdx = endIdx
+		dispatchedCount++
 	}
+	return dispatchedCount, nil
 }
 
 func (d *Dispatcher) processIncoming() {

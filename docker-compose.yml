@@ -9,11 +9,11 @@ services:
     env_file: ./deploy/env/api.env
     ports:
       - "8000:80"   #HTTP
-      - "9090:9000" #TCP
+      - "9080:9000" #TCP
     volumes:
       - ./dataset:/app/dataset:ro
     environment:
-      COORDINATOR_ADDR: ":9000"
+      COORDINATOR_ADDR: ":9080"
     depends_on:
       - redis
     restart: unless-stopped
