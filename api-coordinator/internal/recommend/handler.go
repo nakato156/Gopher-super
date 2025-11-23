@@ -1,7 +1,10 @@
 package recommend
 
 import (
+	"goflix/pkg/types"
+	"log"
 	"net/http"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 )
@@ -35,10 +38,22 @@ func (h *Handler) Recommend(c *gin.Context) {
 	if req.TopN <= 0 {
 		req.TopN = 10
 	}
-	res, err := h.svc.RecommendForUser(req.UserID, req.TopN)
+	results, err := h.svc.RecommendForUser(req.UserID, req.TopN)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "error al calcular recomendaciones"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"recommendations": res})
+
+	recommendations := make([]types.Neighbor, 0)
+	for _, res := range results {
+		recommendations = append(recommendations, res.Neighbors...)
+	}
+	log.Println("Recomendaciones calculadas")
+	log.Println("Recomendaciones: ", recommendations)
+	// sort values
+	sort.Slice(recommendations, func(i, j int) bool {
+		return recommendations[i].Similarity > recommendations[j].Similarity
+	})
+
+	c.JSON(http.StatusOK, gin.H{"recommendations": recommendations})
 }

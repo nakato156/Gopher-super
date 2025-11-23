@@ -32,27 +32,46 @@ func main() {
 	resultTimeout := parseDurationEnv("DISPATCHER_RESULT_TIMEOUT", 90*time.Second)
 	disp := dispatcher.New(server, resultTimeout)
 
-	datasetPath := datasetPathFromEnv()
+	// datasetPath := datasetPathFromEnv()
+	// log.Printf("[SERVER] Leyendo dataset desde %s", datasetPath)
 
-	log.Printf("[SERVER] Leyendo dataset desde %s", datasetPath)
-	userRatings, userIDs, err := dataloader.LoadUserRatings(datasetPath)
-	var mu sync.RWMutex
-	if err != nil {
-		log.Printf("[SERVER] Error cargando dataset: %v", err)
-		return
-	}
+	colName := strings.TrimSpace(os.Getenv("MONGO_COLL_NAME"))
+	dbName := strings.TrimSpace(os.Getenv("MONGO_DB_NAME"))
+	log.Println("colName", colName)
+	log.Println("dbName", dbName)
 
-	triggerDispatch := func(userID int, topN int) ([]dispatcher.Result, error) {
-		payload := dispatchData{
-			userID:      userID,
-			userRatings: userRatings,
-			userIDs:     userIDs,
-			topN:        topN,
+	go func() {
+		// mongoClient, err := plattform.NewClient(ctx)
+		// if err != nil {
+		// 	log.Printf("[SERVER] Error creando cliente mongo: %v", err)
+		// 	return
+		// }
+
+		log.Println("Cliente mongo creado")
+		// obtener la coleccion de mongo
+		// coll := mongoClient.GetCollection(dbName, colName)
+		path := datasetPathFromEnv()
+		log.Println("Coleccion obtenida")
+		userRatings, userIDs, err := dataloader.LoadUserRatings(path)
+		log.Println("Dataset cargado")
+		var mu sync.RWMutex
+		if err != nil {
+			log.Printf("[SERVER] Error cargando dataset: %v", err)
+			return
 		}
-		return scheduleDatasetDispatch(ctx, disp, payload, &mu)
-	}
 
-	go httpserver.NewRouter(ctx, triggerDispatch)
+		triggerDispatch := func(userID int, topN int) ([]dispatcher.Result, error) {
+			payload := dispatchData{
+				userID:      userID,
+				userRatings: userRatings,
+				userIDs:     userIDs,
+				topN:        topN,
+			}
+			return scheduleDatasetDispatch(ctx, disp, payload, &mu)
+		}
+
+		httpserver.NewRouter(ctx, triggerDispatch)
+	}()
 
 	log.Fatal(server.Start(os.Getenv("WORKER_TCP_ADDR")))
 }
