@@ -1,0 +1,48 @@
+flowchart TB
+    subgraph "Cliente"
+        FE[Frontend]
+    end
+
+    subgraph "API Coordinator"
+        HTTP[HTTP Server]
+        DISP[Dispatcher]
+        TCP[TCP Server]
+        MERGE[Merge Engine]
+        REDIS[(Redis)]
+    end
+
+    subgraph "Workers"
+        W[Worker Nodes<br/>N instancias]
+    end
+
+    subgraph "Storage"
+        DS[Dataset]
+    end
+
+    FE -->|Request| HTTP
+    HTTP -->|Trigger| DISP
+    DISP -->|Load| DS
+    DISP -->|Register| REDIS
+    
+    W -->|HELLO| TCP
+    TCP -->|ACK| W
+    W -->|Heartbeat| TCP
+    
+    DISP -->|Distribute Tasks| TCP
+    TCP -->|TASK| W
+    W -->|Compute| W
+    W -->|RESULT| TCP
+    
+    TCP -->|Results| DISP
+    DISP -->|Aggregate| MERGE
+    MERGE -->|Recommendations| HTTP
+    HTTP -->|Response| FE
+
+    style FE fill:#e1f5ff
+    style HTTP fill:#fff4e1
+    style TCP fill:#fff4e1
+    style DISP fill:#ffe1f5
+    style MERGE fill:#ffe1f5
+    style REDIS fill:#e8f5e9
+    style W fill:#e1f5ff
+    style DS fill:#f3e5f5

@@ -1,0 +1,211 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+)
+
+// UserRatingsDocument representa un documento de usuario en MongoDB
+type UserRatingsDocument struct {
+	UserID  int             `bson:"userId" json:"userId"`
+	Ratings map[int]float64 `bson:"ratings" json:"ratings"`
+}
+
+// cargarMatrizDesdeJSON carga la matriz desde un archivo JSON
+func cargarMatrizDesdeJSON(ruta string) (map[int]map[int]float64, error) {
+	fmt.Printf("📥 Leyendo matriz desde: %s\n", ruta)
+
+	file, err := os.Open(ruta)
+	if err != nil {
+		return nil, fmt.Errorf("error abriendo archivo: %w", err)
+	}
+	defer file.Close()
+
+	var matriz map[int]map[int]float64
+	decoder := json.NewDecoder(file)
+
+	startTime := time.Now()
+	if err := decoder.Decode(&matriz); err != nil {
+		return nil, fmt.Errorf("error decodificando JSON: %w", err)
+	}
+
+	elapsed := time.Since(startTime)
+	fmt.Printf("✅ Matriz cargada: %d usuarios (%.2f segundos)\n", len(matriz), elapsed.Seconds())
+
+	return matriz, nil
+}
+
+// cargarMatrizMongoDB carga la matriz a MongoDB
+func cargarMatrizMongoDB(matriz map[int]map[int]float64, mongoURI, dbName, collName string) error {
+	fmt.Println("\n📡 Conectando a MongoDB...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+	defer cancel()
+
+	// Conectar a MongoDB
+	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
+	opt := options.Client().ApplyURI(mongoURI).SetServerAPIOptions(serverAPI)
+	client, err := mongo.Connect(opt)
+	if err != nil {
+		return fmt.Errorf("error conectando a MongoDB: %w", err)
+	}
+	defer client.Disconnect(ctx)
+
+	// Verificar conexión
+	if err := client.Ping(ctx, nil); err != nil {
+		return fmt.Errorf("error haciendo ping a MongoDB: %w", err)
+	}
+	fmt.Println("✅ Conexión exitosa")
+
+	collection := client.Database(dbName).Collection(collName)
+
+	// Verificar documentos existentes para evitar duplicados
+	fmt.Println("\n🔍 Verificando documentos existentes...")
+	existingUsers := make(map[int]bool)
+	cursor, err := collection.Find(ctx, bson.M{}, options.Find().SetProjection(bson.M{"userId": 1}))
+	if err == nil {
+		for cursor.Next(ctx) {
+			var doc struct {
+				UserID int `bson:"userId"`
+			}
+			if err := cursor.Decode(&doc); err == nil {
+				existingUsers[doc.UserID] = true
+			}
+		}
+		cursor.Close(ctx)
+	}
+
+	existingCount := len(existingUsers)
+	if existingCount > 0 {
+		fmt.Printf("   ✅ Encontrados %d usuarios ya existentes\n", existingCount)
+	}
+
+	// Preparar documentos para inserción (solo los que no existen)
+	var documents []interface{}
+	skipped := 0
+	for userID, ratings := range matriz {
+		if existingUsers[userID] {
+			skipped++
+			continue
+		}
+		doc := UserRatingsDocument{
+			UserID:  userID,
+			Ratings: ratings,
+		}
+		documents = append(documents, doc)
+	}
+
+	if skipped > 0 {
+		fmt.Printf("   ⏭️  Omitidos %d usuarios que ya existen\n", skipped)
+	}
+
+	if len(documents) == 0 {
+		fmt.Println("✅ Todos los usuarios ya están en la base de datos. No hay nada que insertar.")
+		return nil
+	}
+
+	// Insertar en lotes
+	batchSize := 1000
+	total := len(documents)
+	inserted := 0
+
+	fmt.Printf("\n📤 Insertando %d usuarios nuevos en MongoDB...\n", total)
+	fmt.Printf("   Colección: %s.%s\n", dbName, collName)
+	fmt.Printf("   Tamaño de lote: %d\n", batchSize)
+
+	startTime := time.Now()
+	for i := 0; i < total; i += batchSize {
+		end := i + batchSize
+		if end > total {
+			end = total
+		}
+
+		batch := documents[i:end]
+		result, err := collection.InsertMany(ctx, batch)
+		if err != nil {
+			return fmt.Errorf("error insertando lote %d-%d: %w", i, end, err)
+		}
+
+		inserted += len(result.InsertedIDs)
+		progress := float64(inserted) / float64(total) * 100
+		elapsed := time.Since(startTime)
+		rate := float64(inserted) / elapsed.Seconds()
+		remaining := float64(total-inserted) / rate
+
+		fmt.Printf("✅ Insertados %d/%d usuarios (%.1f%%) - %.0f docs/s - ~%.0fs restantes\n",
+			inserted, total, progress, rate, remaining)
+	}
+
+	elapsed := time.Since(startTime)
+	fmt.Printf("\n✅ Total de usuarios insertados: %d\n", inserted)
+	fmt.Printf("   Tiempo total: %.2f segundos\n", elapsed.Seconds())
+	fmt.Printf("   Velocidad promedio: %.0f documentos/segundo\n", float64(inserted)/elapsed.Seconds())
+
+	// Verificar conteo final
+	finalCount, err := collection.CountDocuments(ctx, bson.M{})
+	if err == nil {
+		fmt.Printf("   Total de documentos en colección: %d\n", finalCount)
+	}
+
+	return nil
+}
+
+func main() {
+	// Flags de línea de comandos
+	jsonPath := flag.String("input", "matriz_normalizada.json", "Ruta al archivo JSON de la matriz")
+	dbName := flag.String("db", "goflixx", "Nombre de la base de datos")
+	collName := flag.String("collection", "user-movie-matrix", "Nombre de la colección")
+	flag.Parse()
+
+	fmt.Println("🚀 Cargador de Matriz User-Item a MongoDB")
+	fmt.Println("=" + string(make([]byte, 60)) + "=")
+
+	// Configuración de MongoDB (hardcoded - credenciales del servidor compartido)
+	mongoURI := "mongodb+srv://go202218075_flix_user:SnXjhh4dC7J1Fdxt@goster.r5w3st4.mongodb.net/?appName=goster"
+
+	// Ruta por defecto: matriz_normalizada.json en el mismo directorio donde se ejecuta el script
+	// (generado por analisis.go en movie_lens_data_procc/)
+	if *jsonPath == "matriz_normalizada.json" {
+		// Verificar si existe en el directorio actual
+		if _, err := os.Stat(*jsonPath); os.IsNotExist(err) {
+			// Si no existe, intentar en el directorio padre
+			*jsonPath = "../matriz_normalizada.json"
+		}
+	}
+
+	// Verificar que el archivo JSON existe
+	if _, err := os.Stat(*jsonPath); os.IsNotExist(err) {
+		log.Fatalf("❌ Error: El archivo %s no existe", *jsonPath)
+	}
+
+	// Cargar matriz desde JSON
+	matriz, err := cargarMatrizDesdeJSON(*jsonPath)
+	if err != nil {
+		log.Fatalf("❌ Error cargando matriz: %v", err)
+	}
+
+	if len(matriz) == 0 {
+		log.Fatal("❌ La matriz está vacía")
+	}
+
+	// Cargar a MongoDB
+	fmt.Println("\n📊 Configuración:")
+	fmt.Printf("   URI: mongodb+srv://go202218075_flix_user:***@goster.r5w3st4.mongodb.net/?appName=goster\n")
+	fmt.Printf("   Base de datos: %s\n", *dbName)
+	fmt.Printf("   Colección: %s\n", *collName)
+
+	if err := cargarMatrizMongoDB(matriz, mongoURI, *dbName, *collName); err != nil {
+		log.Fatalf("❌ Error al cargar a MongoDB: %v", err)
+	}
+
+	fmt.Printf("\n✅ Matriz cargada exitosamente en MongoDB: %s.%s\n", *dbName, *collName)
+}
