@@ -20,6 +20,7 @@ type dispatchData struct {
 	userID      int
 	userRatings map[int]map[int]float64
 	userIDs     []int
+	topN        int
 }
 
 func main() {
@@ -41,11 +42,12 @@ func main() {
 		return
 	}
 
-	triggerDispatch := func(userID int) ([]dispatcher.Result, error) {
+	triggerDispatch := func(userID int, topN int) ([]dispatcher.Result, error) {
 		payload := dispatchData{
 			userID:      userID,
 			userRatings: userRatings,
 			userIDs:     userIDs,
+			topN:        topN,
 		}
 		return scheduleDatasetDispatch(ctx, disp, payload, &mu)
 	}
@@ -71,7 +73,7 @@ func scheduleDatasetDispatch(ctx context.Context, disp *dispatcher.Dispatcher, d
 	log.Printf("[DISPATCHER] Despachando tarea automática para userID=%d con %d usuarios", targetID, len(data.userRatings))
 
 	resultsCh := make(chan dispatcher.Result, 100) // Buffer sufficiente para evitar bloqueo
-	count, err := disp.Run(ctx, targetID, data.userRatings, resultsCh)
+	count, err := disp.Run(ctx, targetID, data.userRatings, data.topN, resultsCh)
 	if err != nil {
 		return nil, err
 	}

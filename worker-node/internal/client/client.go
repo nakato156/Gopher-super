@@ -7,8 +7,11 @@ import (
 	"goflix/pkg/styles"
 	"goflix/pkg/tcp"
 	"goflix/pkg/types"
+	"math"
 	"net"
 	"runtime"
+	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -191,14 +194,32 @@ func (wc *WorkerClient) Process(ctx context.Context) error {
 
 				styles.PrintFS("info", "[WORKER] Procesando TASK "+task.JobID)
 
+				neighbors := make([]types.Neighbor, 0, len(task.CandidateRatings))
+				for candidateID, candidateRatings := range task.CandidateRatings {
+					sim := cosineSimilarity(task.TargetRatings, candidateRatings)
+					if sim > 0 { // Solo guardamos si hay alguna similitud positiva (opcional)
+						neighbors = append(neighbors, types.Neighbor{
+							ID:         strconv.Itoa(candidateID),
+							Similarity: sim,
+						})
+					}
+				}
+
+				// Ordenar por similitud descendente
+				sort.Slice(neighbors, func(i, j int) bool {
+					return neighbors[i].Similarity > neighbors[j].Similarity
+				})
+
+				// Mantener solo los top K
+				if len(neighbors) > task.K {
+					neighbors = neighbors[:task.K]
+				}
+
 				// enviar RESULT
 				result := types.Result{
-					JobID:   task.JobID,
-					BlockID: task.BlockID,
-					Neighbors: []types.Neighbor{
-						{ID: "item1", Similarity: 0.9},
-						{ID: "item2", Similarity: 0.8},
-					},
+					JobID:     task.JobID,
+					BlockID:   task.BlockID,
+					Neighbors: neighbors,
 				}
 				data, err := json.Marshal(result)
 				if err != nil {
@@ -214,4 +235,26 @@ func (wc *WorkerClient) Process(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+func cosineSimilarity(a, b map[int]float64) float64 {
+	var dotProduct, normA, normB float64
+
+	// Iterar sobre las claves de 'a' para encontrar coincidencias en 'b'
+	for key, valA := range a {
+		if valB, ok := b[key]; ok {
+			dotProduct += valA * valB
+		}
+		normA += valA * valA
+	}
+
+	for _, valB := range b {
+		normB += valB * valB
+	}
+
+	if normA == 0 || normB == 0 {
+		return 0.0
+	}
+
+	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
 }

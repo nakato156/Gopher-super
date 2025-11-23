@@ -21,7 +21,7 @@ const (
 	defaultMongoRetryInterval = 15 * time.Second
 )
 
-func NewRouter(ctx context.Context, dispatchTrigger func(int) ([]types.Result, error)) *gin.Engine {
+func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Result, error)) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Logger())

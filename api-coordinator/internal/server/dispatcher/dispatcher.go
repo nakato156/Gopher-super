@@ -34,7 +34,7 @@ func New(server *tcpserver.Server, timeout time.Duration) *Dispatcher {
 	return d
 }
 
-func (d *Dispatcher) Run(ctx context.Context, userID int, userRatings map[int]map[int]float64, resultsCh chan<- Result) (int, error) {
+func (d *Dispatcher) Run(ctx context.Context, userID int, userRatings map[int]map[int]float64, topN int, resultsCh chan<- Result) (int, error) {
 	fmt.Println("Dispatcher Run started for userID:", userID)
 	if d.resultsChans == nil {
 		d.resultsChans = make(map[string]chan types.Result)
@@ -75,16 +75,31 @@ func (d *Dispatcher) Run(ctx context.Context, userID int, userRatings map[int]ma
 	// jobID := uuid.New().String()
 	startIdx := 0
 	dispatchedCount := 0
+
+	targetRatings := userRatings[userID]
+
 	for i := 0; i < numBlocks; i++ {
 		endIdx := startIdx + blockSize
 		if i < remainder {
 			endIdx++
 		}
 		workerID := idleWorkers[i]
+
+		// Extract candidate ratings for this block
+		candidateRatings := make(map[int]map[int]float64)
+		// The block is defined by startIdx and endIdx in the userIDs slice
+		// userIDs contains the IDs of all candidates
+		currentBlockIDs := userIDs[startIdx:endIdx]
+		for _, id := range currentBlockIDs {
+			candidateRatings[id] = userRatings[id]
+		}
+
 		task := types.Task{
-			JobID:   workerID,
-			BlockID: types.Block{StartID: startIdx, EndID: endIdx - 1},
-			K:       30,
+			JobID:            workerID,
+			BlockID:          types.Block{StartID: startIdx, EndID: endIdx - 1},
+			K:                topN,
+			TargetRatings:    targetRatings,
+			CandidateRatings: candidateRatings,
 		}
 		fmt.Println("Creando tarea para worker", workerID, "con block StartID:", startIdx, "EndID:", endIdx-1)
 		ch := make(chan types.Result, 1)

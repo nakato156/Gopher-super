@@ -36,9 +36,11 @@ type Block struct {
 type Task struct {
 	JobID   string `json:"job_id"`
 	BlockID Block  `json:"block_id"`
-	Algo    string `json:"algo"` // "user-based" | "item-based"
-	Sim     string `json:"sim"`  // "cosine" | "pearson" | "jaccard"
-	K       int    `json:"k"`
+	// Algo             string                  `json:"algo"` // "user-based" | "item-based"
+	// Sim              string                  `json:"sim"`  // "cosine" | "pearson" | "jaccard"
+	K                int                     `json:"k"`
+	TargetRatings    map[int]float64         `json:"target_ratings"`
+	CandidateRatings map[int]map[int]float64 `json:"candidate_ratings"`
 }
 
 // Neighbor representa una relación de similitud parcial (resultado intermedio).

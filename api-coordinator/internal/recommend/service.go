@@ -12,7 +12,7 @@ type Service interface {
 	RecommendForUser(userID int, topN int) ([]types.Result, error)
 }
 
-type DispatchFunc func(int) ([]types.Result, error)
+type DispatchFunc func(int, int) ([]types.Result, error)
 
 type recomendService struct {
 	dispatch DispatchFunc
@@ -24,7 +24,7 @@ func NewService(dispatch DispatchFunc) Service {
 
 func (m *recomendService) RecommendForUser(userID int, topN int) ([]types.Result, error) {
 	if m.dispatch != nil {
-		results, err := m.dispatch(userID)
+		results, err := m.dispatch(userID, topN)
 		if err != nil {
 			return nil, err
 		}
