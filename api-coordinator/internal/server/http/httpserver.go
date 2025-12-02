@@ -14,6 +14,7 @@ import (
 	"goflix/pkg/styles"
 	"goflix/pkg/types"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,6 +27,7 @@ func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Resu
 
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
+	r.Use(cors.Default())
 
 	mongoClient := connectMongoWithRetry(ctx)
 	if mongoClient == nil {

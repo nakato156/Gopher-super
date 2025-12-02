@@ -50,6 +50,16 @@ services:
     networks:
       - internal
 
+  frontend:
+    build:
+      context: ./front_concurrente
+      dockerfile: Dockerfile
+    ports:
+      - "5050:80"
+    restart: unless-stopped
+    networks:
+      - internal
+
 networks:
   internal:
 
