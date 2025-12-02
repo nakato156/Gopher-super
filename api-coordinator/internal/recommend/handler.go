@@ -2,7 +2,6 @@ package recommend
 
 import (
 	"goflix/pkg/types"
-	"log"
 	"net/http"
 	"sort"
 
@@ -48,8 +47,7 @@ func (h *Handler) Recommend(c *gin.Context) {
 	for _, res := range results {
 		recommendations = append(recommendations, res.Neighbors...)
 	}
-	log.Println("Recomendaciones calculadas")
-	log.Println("Recomendaciones: ", recommendations)
+
 	// sort values
 	sort.Slice(recommendations, func(i, j int) bool {
 		return recommendations[i].Similarity > recommendations[j].Similarity

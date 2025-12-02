@@ -11,6 +11,7 @@ import (
 	"time"
 
 	dataloader "goflix/api-coordinator/internal/data"
+	"goflix/api-coordinator/internal/plattform"
 	"goflix/api-coordinator/internal/server/dispatcher"
 	httpserver "goflix/api-coordinator/internal/server/http"
 	tcpserver "goflix/api-coordinator/internal/server/tcp"
@@ -41,18 +42,18 @@ func main() {
 	log.Println("dbName", dbName)
 
 	go func() {
-		// mongoClient, err := plattform.NewClient(ctx)
-		// if err != nil {
-		// 	log.Printf("[SERVER] Error creando cliente mongo: %v", err)
-		// 	return
-		// }
+		mongoClient, err := plattform.NewClient(ctx)
+		if err != nil {
+			log.Printf("[SERVER] Error creando cliente mongo: %v", err)
+			return
+		}
 
 		log.Println("Cliente mongo creado")
 		// obtener la coleccion de mongo
-		// coll := mongoClient.GetCollection(dbName, colName)
-		path := datasetPathFromEnv()
+		coll := mongoClient.GetCollection(dbName, colName)
+		// path := datasetPathFromEnv()
 		log.Println("Coleccion obtenida")
-		userRatings, userIDs, err := dataloader.LoadUserRatings(path)
+		userRatings, userIDs, err := dataloader.LoadUserRatingsFromMongo(ctx, coll)
 		log.Println("Dataset cargado")
 		var mu sync.RWMutex
 		if err != nil {
