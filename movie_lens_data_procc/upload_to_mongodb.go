@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -52,8 +53,15 @@ func cargarMatrizMongoDB(matriz map[int]map[int]float64, mongoURI, dbName, collN
 	defer cancel()
 
 	// Conectar a MongoDB
-	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
-	opt := options.Client().ApplyURI(mongoURI).SetServerAPIOptions(serverAPI)
+	// ServerAPI solo es necesario para MongoDB Atlas, no para instancias locales
+	opt := options.Client().ApplyURI(mongoURI)
+
+	// Solo agregar ServerAPI si es una conexión a Atlas (mongodb+srv://)
+	if len(mongoURI) > 10 && mongoURI[:10] == "mongodb+srv" {
+		serverAPI := options.ServerAPI(options.ServerAPIVersion1)
+		opt.SetServerAPIOptions(serverAPI)
+	}
+
 	client, err := mongo.Connect(opt)
 	if err != nil {
 		return fmt.Errorf("error conectando a MongoDB: %w", err)
@@ -164,13 +172,15 @@ func main() {
 	jsonPath := flag.String("input", "matriz_normalizada.json", "Ruta al archivo JSON de la matriz")
 	dbName := flag.String("db", "goflixx", "Nombre de la base de datos")
 	collName := flag.String("collection", "user-movie-matrix", "Nombre de la colección")
+
+	// URI de MongoDB - por defecto usa la instancia local de Docker
+	defaultLocalURI := "mongodb://admin:password@localhost:27017/?authSource=admin"
+	mongoURI := flag.String("uri", defaultLocalURI, "URI de conexión a MongoDB (por defecto: instancia local)")
+
 	flag.Parse()
 
 	fmt.Println("🚀 Cargador de Matriz User-Item a MongoDB")
 	fmt.Println("=" + string(make([]byte, 60)) + "=")
-
-	// Configuración de MongoDB (hardcoded - credenciales del servidor compartido)
-	mongoURI := "mongodb+srv://go202218075_flix_user:SnXjhh4dC7J1Fdxt@goster.r5w3st4.mongodb.net/?appName=goster"
 
 	// Ruta por defecto: matriz_normalizada.json en el mismo directorio donde se ejecuta el script
 	// (generado por analisis.go en movie_lens_data_procc/)
@@ -197,15 +207,68 @@ func main() {
 		log.Fatal("❌ La matriz está vacía")
 	}
 
+	// Mostrar información sobre la estructura de datos
+	fmt.Println("\n📋 Información de la estructura de datos:")
+	fmt.Printf("   Total de usuarios en la matriz: %d\n", len(matriz))
+
+	// Mostrar ejemplo de un documento
+	exampleCount := 0
+	for userID, ratings := range matriz {
+		exampleCount++
+		fmt.Printf("\n   📄 Ejemplo de documento que se insertará:\n")
+		fmt.Printf("      {\n")
+		fmt.Printf("        \"userId\": %d,\n", userID)
+		fmt.Printf("        \"ratings\": {\n")
+		ratingCount := 0
+		for movieID, rating := range ratings {
+			if ratingCount < 3 { // Mostrar solo los primeros 3 ratings como ejemplo
+				fmt.Printf("          \"%d\": %.4f,\n", movieID, rating)
+			}
+			ratingCount++
+		}
+		if ratingCount > 3 {
+			fmt.Printf("          ... (y %d ratings más)\n", ratingCount-3)
+		}
+		fmt.Printf("        }\n")
+		fmt.Printf("      }\n")
+		fmt.Printf("      Total de ratings para este usuario: %d\n", ratingCount)
+		if exampleCount >= 1 {
+			break
+		}
+	}
+
 	// Cargar a MongoDB
-	fmt.Println("\n📊 Configuración:")
-	fmt.Printf("   URI: mongodb+srv://go202218075_flix_user:***@goster.r5w3st4.mongodb.net/?appName=goster\n")
+	fmt.Println("\n📊 Configuración de MongoDB:")
+	// Ocultar credenciales en la salida
+	displayURI := *mongoURI
+	if len(displayURI) > 20 {
+		// Ocultar contraseña en la URI para mostrar
+		if idx := strings.Index(displayURI, "@"); idx > 0 {
+			if userIdx := strings.Index(displayURI[:idx], "://"); userIdx > 0 {
+				protocol := displayURI[:userIdx+3]
+				rest := displayURI[idx:]
+				displayURI = protocol + "***" + rest
+			}
+		}
+	}
+	fmt.Printf("   URI: %s\n", displayURI)
 	fmt.Printf("   Base de datos: %s\n", *dbName)
 	fmt.Printf("   Colección: %s\n", *collName)
+	fmt.Printf("\n   📦 Estructura de cada documento:\n")
+	fmt.Printf("      {\n")
+	fmt.Printf("        \"userId\": <int>,           // ID del usuario\n")
+	fmt.Printf("        \"ratings\": {              // Mapa de ratings normalizados\n")
+	fmt.Printf("          \"<movieId>\": <float>,   // MovieID -> Rating normalizado\n")
+	fmt.Printf("          ...\n")
+	fmt.Printf("        }\n")
+	fmt.Printf("      }\n")
 
-	if err := cargarMatrizMongoDB(matriz, mongoURI, *dbName, *collName); err != nil {
+	if err := cargarMatrizMongoDB(matriz, *mongoURI, *dbName, *collName); err != nil {
 		log.Fatalf("❌ Error al cargar a MongoDB: %v", err)
 	}
 
-	fmt.Printf("\n✅ Matriz cargada exitosamente en MongoDB: %s.%s\n", *dbName, *collName)
+	fmt.Printf("\n✅ Matriz cargada exitosamente en MongoDB!\n")
+	fmt.Printf("   📍 Ubicación: %s.%s\n", *dbName, *collName)
+	fmt.Printf("   💡 Puedes verificar con: mongosh \"%s\" --eval \"use %s; db.%s.findOne()\"\n",
+		strings.Replace(*mongoURI, "password", "***", 1), *dbName, *collName)
 }

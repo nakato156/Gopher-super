@@ -107,7 +107,18 @@ func cargarMatrizJSON(ruta string) (map[int]map[int]float64, error) {
 
 func main() {
 	fmt.Println("📥 Leyendo archivo ratings.csv ...")
-	ratings, err := leerRatingsCSV("ml-32m/ratings.csv")
+
+	// Intentar diferentes rutas posibles
+	csvPath := "ml-32m/ratings.csv"
+	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
+		// Intentar en el directorio padre
+		csvPath = "../ml-32m/ratings.csv"
+		if _, err := os.Stat(csvPath); os.IsNotExist(err) {
+			log.Fatal("Error: No se encontró ratings.csv en ml-32m/ ni en ../ml-32m/")
+		}
+	}
+
+	ratings, err := leerRatingsCSV(csvPath)
 	if err != nil {
 		log.Fatal("Error al leer CSV:", err)
 	}
