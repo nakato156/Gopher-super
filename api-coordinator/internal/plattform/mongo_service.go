@@ -82,3 +82,8 @@ func (s *MongoService) UpdateOne(ctx context.Context, dbName, collName string, f
 func (s *MongoService) GetCollection(dbName, collName string) *mongo.Collection {
 	return s.client.Database(dbName).Collection(collName)
 }
+
+// Ping checks the connection to MongoDB.
+func (s *MongoService) Ping(ctx context.Context) error {
+	return s.client.Ping(ctx, nil)
+}

@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"goflix/api-coordinator/internal/auth"
+	"goflix/api-coordinator/internal/health"
 	"goflix/api-coordinator/internal/plattform"
 	"goflix/api-coordinator/internal/recommend"
+	tcpserver "goflix/api-coordinator/internal/server/tcp"
 	"goflix/api-coordinator/internal/userstats"
 	"goflix/pkg/styles"
 	"goflix/pkg/types"
@@ -24,7 +26,7 @@ const (
 	defaultMongoRetryInterval = 15 * time.Second
 )
 
-func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Result, error)) *gin.Engine {
+func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Result, error), server *tcpserver.Server) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Logger())
@@ -94,6 +96,12 @@ func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Resu
 	protectedRoot := r.Group("/recomend")
 	protectedRoot.Use(auth.AuthMiddleware(tokenManager))
 	recHandler.RegisterRoutes(protectedRoot)
+
+	// Health Check
+	healthSvc := health.NewService(mongoClient, server)
+	healthHandler := health.NewHandler(healthSvc)
+	healthHandler.RegisterRoutes(r.Group("/"))
+	healthHandler.RegisterRoutes(api)
 
 	// Escuchar en todas las interfaces del contenedor
 	addr := os.Getenv("HTTP_ADDR")

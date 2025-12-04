@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -71,7 +70,7 @@ func main() {
 			return scheduleDatasetDispatch(ctx, disp, payload, &mu)
 		}
 
-		httpserver.NewRouter(ctx, triggerDispatch)
+		httpserver.NewRouter(ctx, triggerDispatch, server)
 	}()
 
 	log.Fatal(server.Start(os.Getenv("WORKER_TCP_ADDR")))
@@ -108,13 +107,6 @@ func scheduleDatasetDispatch(ctx context.Context, disp *dispatcher.Dispatcher, d
 		}
 	}
 	return results, nil
-}
-
-func datasetPathFromEnv() string {
-	if val := strings.TrimSpace(os.Getenv("RATINGS_DATA_PATH")); val != "" {
-		return val
-	}
-	return filepath.Join("dataset", "ml-latest-small", "ratings.csv")
 }
 
 func parseDurationEnv(key string, fallback time.Duration) time.Duration {
