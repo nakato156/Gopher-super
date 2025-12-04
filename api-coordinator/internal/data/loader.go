@@ -90,10 +90,10 @@ func LoadUserRatings(path string) (map[int]map[int]float64, []int, error) {
 //	}
 func LoadUserRatingsFromMongo(ctx context.Context, coll *mongo.Collection) (map[int]map[int]float64, []int, error) {
 	// Estructura auxiliar para decodificar el documento de MongoDB.
-	// "ratigings" es un mapa donde la clave es el movieID (string) y el valor es el rating.
+	// "ratings" es un mapa donde la clave es el movieID (string) y el valor es el rating.
 	type userDoc struct {
-		UserID  int                `bson:"userid"`
-		Ratings map[string]float64 `bson:"ratigings"`
+		UserID  string             `bson:"userId"`
+		Ratings map[string]float64 `bson:"ratings"`
 	}
 
 	cursor, err := coll.Find(ctx, bson.D{})
@@ -111,8 +111,14 @@ func LoadUserRatingsFromMongo(ctx context.Context, coll *mongo.Collection) (map[
 			return nil, nil, fmt.Errorf("decodificando documento mongo: %w", err)
 		}
 
-		if _, ok := userRatings[doc.UserID]; !ok {
-			userRatings[doc.UserID] = make(map[int]float64)
+		uid, err := strconv.Atoi(doc.UserID)
+		if err != nil {
+			// Si el ID no es numérico, lo ignoramos (o logueamos error)
+			continue
+		}
+
+		if _, ok := userRatings[uid]; !ok {
+			userRatings[uid] = make(map[int]float64)
 		}
 
 		for movieIDStr, rating := range doc.Ratings {
@@ -122,9 +128,9 @@ func LoadUserRatingsFromMongo(ctx context.Context, coll *mongo.Collection) (map[
 				// En este caso, ignoramos claves mal formadas.
 				continue
 			}
-			userRatings[doc.UserID][mid] = rating
+			userRatings[uid][mid] = rating
 		}
-		userSet[doc.UserID] = struct{}{}
+		userSet[uid] = struct{}{}
 	}
 
 	if err := cursor.Err(); err != nil {

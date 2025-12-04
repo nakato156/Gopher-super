@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -11,9 +10,11 @@ import (
 // User representa al usuario en la base de datos.
 type User struct {
 	ID           bson.ObjectID `bson:"_id,omitempty" json:"id"`
+	UserID       string        `bson:"userId" json:"userId"`
 	Email        string        `bson:"email" json:"email"`
-	PasswordHash string        `bson:"password_hash" json:"-"`
-	CreatedAt    time.Time     `bson:"created_at" json:"created_at"`
+	PasswordHash string        `bson:"password" json:"-"`
+	// es una map {string: float64}
+	Ratings map[string]float64 `bson:"ratings,omitempty" json:"ratings,omitempty"`
 }
 
 // Errores de dominio de auth.
@@ -37,6 +38,6 @@ type Service interface {
 
 // TokenManager abstrae la generación de tokens (JWT o lo que quieras).
 type TokenManager interface {
-	GenerateToken(userID string) (string, error)
+	GenerateToken(userID string, appUserID string) (string, error)
 	ValidateToken(token string) (string, error)
 }

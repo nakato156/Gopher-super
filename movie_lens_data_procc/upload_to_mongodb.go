@@ -7,17 +7,19 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // UserRatingsDocument representa un documento de usuario en MongoDB
 type UserRatingsDocument struct {
-	UserID   int             `bson:"userId" json:"userId"`
+	UserID   string          `bson:"userId" json:"userId"`
 	Email    string          `bson:"email" json:"email"`
 	Password string          `bson:"password" json:"password"`
 	Ratings  map[int]float64 `bson:"ratings" json:"ratings"`
@@ -107,10 +109,17 @@ func cargarMatrizMongoDB(matriz map[int]map[int]float64, mongoURI, dbName, collN
 			skipped++
 			continue
 		}
+
+		password := fmt.Sprintf("User%d", userID)
+		hashPwd, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+
 		doc := UserRatingsDocument{
-			UserID:   userID,
+			UserID:   strconv.Itoa(userID),
 			Email:    fmt.Sprintf("user%d@example.com", userID),
-			Password: fmt.Sprintf("User%d", userID),
+			Password: string(hashPwd),
 			Ratings:  ratings,
 		}
 		documents = append(documents, doc)

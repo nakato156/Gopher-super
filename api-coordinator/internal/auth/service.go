@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -41,14 +42,14 @@ func (s *service) Register(ctx context.Context, email, password string) (string,
 	u := &User{
 		Email:        email,
 		PasswordHash: string(hash),
-		CreatedAt:    s.now(),
+		UserID:       uuid.New().String(),
 	}
 
 	if err := s.repo.CreateUser(ctx, u); err != nil {
 		return "", "", err
 	}
 
-	token, err := s.tokens.GenerateToken(u.ID.Hex())
+	token, err := s.tokens.GenerateToken(u.ID.Hex(), u.UserID)
 	if err != nil {
 		return "", "", err
 	}
@@ -57,6 +58,7 @@ func (s *service) Register(ctx context.Context, email, password string) (string,
 }
 
 func (s *service) Login(ctx context.Context, email, password string) (string, string, error) {
+	fmt.Printf("searching %s", email)
 	u, err := s.repo.GetByEmail(ctx, email)
 	if err != nil {
 		if err == ErrUserNotFound {
@@ -69,7 +71,7 @@ func (s *service) Login(ctx context.Context, email, password string) (string, st
 		return "", "", ErrInvalidCredentials
 	}
 
-	token, err := s.tokens.GenerateToken(u.ID.Hex())
+	token, err := s.tokens.GenerateToken(u.ID.Hex(), u.UserID)
 	if err != nil {
 		return "", "", err
 	}

@@ -35,6 +35,7 @@ func (r *mongoRepository) GetByEmail(ctx context.Context, email string) (*User, 
 
 	var u User
 	err := r.coll.FindOne(ctx, bson.M{"email": email}).Decode(&u)
+
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, ErrUserNotFound

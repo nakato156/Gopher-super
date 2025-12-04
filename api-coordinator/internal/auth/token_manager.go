@@ -19,11 +19,15 @@ func NewJWTTokenManager(secret string) TokenManager {
 	}
 }
 
-func (j *jwtTokenManager) GenerateToken(userID string) (string, error) {
+func (j *jwtTokenManager) GenerateToken(userID string, appUserID string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,
 		"exp":     time.Now().Add(24 * time.Hour).Unix(),
 		"iat":     time.Now().Unix(),
+	}
+
+	if appUserID != "" {
+		claims["user_id"] = appUserID
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

@@ -19,4 +19,4 @@ WORKDIR /app/movie_lens_data_procc
 # But running go run is fine for scripts
 # We will use a shell script or chained command for the entrypoint
 
-CMD sh -c "go run analisis.go && go run upload_to_mongodb.go -uri mongodb://mongo:27017"
+CMD sh -c "go run analisis.go && go run upload_to_mongodb.go -uri mongodb://mongo:27017 && go run upload_movies.go -uri mongodb://mongo:27017"

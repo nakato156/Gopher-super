@@ -30,7 +30,7 @@ type Handler struct {
 func NewHandler(svc Service) *Handler {
 	return &Handler{
 		svc:     svc,
-		timeout: 5 * time.Second,
+		timeout: 30 * time.Second,
 	}
 }
 

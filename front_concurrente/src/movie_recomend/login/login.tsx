@@ -1,5 +1,6 @@
 import React, { useState, FormEvent, ChangeEvent, useEffect } from 'react';
 import { Eye, EyeOff, Film, ChevronRight } from 'lucide-react';
+import { API_CONFIG } from '../config';
 import intelestelarImg from '../../assets/movie_imgs/intelestelar.jpg';
 import herImg from '../../assets/movie_imgs/her.jpg';
 import bladerunnerImg from '../../assets/movie_imgs/bladerrunnner.jpg';
@@ -83,18 +84,40 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setIsLoading(true);
 
     try {
-      // Aquí iría tu llamada a la API
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      console.log('Login data:', formData);
-      // Guardar el email del usuario en localStorage
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Login failed');
+      }
+
+      const data = await response.json();
+      console.log('Login successful:', data);
+
+      // Guardar datos del usuario
       localStorage.setItem('userEmail', formData.email);
+      localStorage.setItem('authToken', data.token);
+      localStorage.setItem('userId', data.user_id);
+
       // Manejar respuesta exitosa
       if (onLoginSuccess) {
         onLoginSuccess();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      // Manejar error
+      setErrors(prev => ({
+        ...prev,
+        email: error.message || 'Error al iniciar sesión'
+      }));
     } finally {
       setIsLoading(false);
     }

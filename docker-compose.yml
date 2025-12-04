@@ -8,7 +8,7 @@ services:
       dockerfile: api-coordinator/Dockerfile
     env_file: ./deploy/env/api.env
     ports:
-      - "8000:80"   #HTTP
+      - "8000:80" #HTTP
       - "9080:9000" #TCP
     volumes:
       - ./dataset:/app/dataset:ro
@@ -16,6 +16,8 @@ services:
       COORDINATOR_ADDR: ":9080"
     depends_on:
       - redis
+      - loader
+      - mongo
     restart: unless-stopped
     networks:
       - internal
@@ -45,7 +47,7 @@ services:
 
   redis:
     image: redis:7
-    command: ["redis-server", "--appendonly", "yes"]
+    command: [ "redis-server", "--appendonly", "yes" ]
     restart: unless-stopped
     networks:
       - internal
@@ -83,6 +85,7 @@ services:
 
 networks:
   internal:
+
 
 volumes:
   mongo_data_new:

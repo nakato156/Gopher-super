@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"goflix/api-coordinator/internal/auth"
 	"goflix/api-coordinator/internal/plattform"
 	"goflix/api-coordinator/internal/recommend"
+	"goflix/api-coordinator/internal/userstats"
 	"goflix/pkg/styles"
 	"goflix/pkg/types"
 
@@ -37,7 +39,9 @@ func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Resu
 
 	// conect with mongo
 	dbName := os.Getenv("MONGO_DB_NAME")
-	usersColl := mongoClient.GetCollection(dbName, "users")
+	fmt.Println(dbName)
+	fmt.Println(os.Getenv("MONGO_COLL_NAME"))
+	usersColl := mongoClient.GetCollection(dbName, os.Getenv("MONGO_COLL_NAME"))
 	repo := auth.NewMongoRepository(usersColl)
 
 	secret := os.Getenv("JWT_SECRET")
@@ -61,10 +65,28 @@ func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Resu
 	recSvc := recommend.NewService(dispatchTrigger)
 	recHandler := recommend.NewHandler(recSvc)
 
+	// User Stats
+	moviesCollName := "movies"
+	ratingsCollName := os.Getenv("MONGO_COLL_NAME")
+	if ratingsCollName == "" {
+		ratingsCollName = "user-movie-matrix"
+	}
+	moviesColl := mongoClient.GetCollection(dbName, moviesCollName)
+	ratingsColl := mongoClient.GetCollection(dbName, ratingsCollName)
+
+	userStatsRepo := userstats.NewMongoRepository(moviesColl, ratingsColl)
+	userStatsSvc := userstats.NewService(userStatsRepo)
+	userStatsHandler := userstats.NewHandler(userStatsSvc)
+
 	// Protected routes
 	protected := api.Group("/recomend")
 	protected.Use(auth.AuthMiddleware(tokenManager))
 	recHandler.RegisterRoutes(protected)
+
+	// User Stats Routes (Protected)
+	userGroup := api.Group("/user")
+	userGroup.Use(auth.AuthMiddleware(tokenManager))
+	userStatsHandler.RegisterRoutes(userGroup)
 
 	// Also expose protected /recomend at root
 	protectedRoot := r.Group("/recomend")

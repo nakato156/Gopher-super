@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Film, User, Calendar, ArrowLeft, Lock, UserCircle, Mail } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Movie } from '../services/tmdb';
-import { getUserMovieList, getUserAccountDate } from '../services/userList';
+import { getUserAccountDate } from '../services/userList';
+import { getUserMoviesSeen, getUserTopGenres, GenreStat } from '../services/userStats';
 import MovieCard from '../components/MovieCard';
 
 interface ProfileProps {
@@ -13,11 +14,18 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
   const [userName, setUserName] = useState<string>('Usuario');
   const [accountDate, setAccountDate] = useState<Date>(new Date());
   const [userMovies, setUserMovies] = useState<Movie[]>([]);
+  const [topGenres, setTopGenres] = useState<GenreStat[]>([]);
 
   // Función para actualizar la lista de películas
-  const updateMovieList = () => {
-    const movies = getUserMovieList();
+  const updateMovieList = async () => {
+    const movies = await getUserMoviesSeen();
     setUserMovies(movies);
+  };
+
+  // Función para actualizar top géneros
+  const updateTopGenres = async () => {
+    const genres = await getUserTopGenres();
+    setTopGenres(genres);
   };
 
   // Obtener datos del usuario
@@ -32,18 +40,21 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
     setAccountDate(date);
 
     updateMovieList();
+    updateTopGenres();
 
     // Escuchar cambios en localStorage (cuando se agregan/quitan películas)
     const handleStorageChange = () => {
       updateMovieList();
+      updateTopGenres();
     };
 
     window.addEventListener('storage', handleStorageChange);
 
     // También escuchar eventos personalizados si se usan
     const interval = setInterval(() => {
-      updateMovieList();
-    }, 1000); // Actualizar cada segundo para detectar cambios
+      // Opcional: polling si se desea, pero mejor evitar muchas llamadas
+      // updateMovieList();
+    }, 5000);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
@@ -51,26 +62,13 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
     };
   }, []);
 
-  // Calcular datos para el gráfico de pie (películas por género)
+  // Calcular datos para el gráfico de pie (usando el endpoint de top géneros)
   const genrePieData = useMemo(() => {
-    const genreCount: { [key: string]: number } = {};
-
-    userMovies.forEach(movie => {
-      const genres = movie.genres.split('|').filter(g => g.trim() !== '');
-      if (genres.length === 0) {
-        genreCount['Unknown'] = (genreCount['Unknown'] || 0) + 1;
-      } else {
-        genres.forEach(genre => {
-          genreCount[genre] = (genreCount[genre] || 0) + 1;
-        });
-      }
-    });
-
-    return Object.entries(genreCount).map(([name, value]) => ({
-      name,
-      value,
+    return topGenres.map(g => ({
+      name: g.genre,
+      value: g.count
     }));
-  }, [userMovies]);
+  }, [topGenres]);
 
   // Calcular datos para el gráfico de columnas (rating promedio por género)
   const genreRatingData = useMemo(() => {
@@ -78,7 +76,8 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
 
     userMovies.forEach(movie => {
       const genres = movie.genres.split('|').filter(g => g.trim() !== '');
-      const rating = movie.csvRating || movie.rating ? (movie.csvRating || (movie.rating! / 2)) : 0;
+      // Usar el rating del backend si existe, sino 0
+      const rating = movie.rating || 0;
 
       if (genres.length === 0) {
         if (!genreRatings['Unknown']) {
