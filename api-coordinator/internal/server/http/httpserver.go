@@ -11,6 +11,7 @@ import (
 
 	"goflix/api-coordinator/internal/auth"
 	"goflix/api-coordinator/internal/health"
+	"goflix/api-coordinator/internal/monitoring"
 	"goflix/api-coordinator/internal/plattform"
 	"goflix/api-coordinator/internal/recommend"
 	tcpserver "goflix/api-coordinator/internal/server/tcp"
@@ -102,6 +103,11 @@ func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Resu
 	healthHandler := health.NewHandler(healthSvc)
 	healthHandler.RegisterRoutes(r.Group("/"))
 	healthHandler.RegisterRoutes(api)
+
+	// Monitoring
+	monitorSvc := monitoring.NewService(mongoClient, server)
+	monitorHandler := monitoring.NewHandler(monitorSvc)
+	monitorHandler.RegisterRoutes(api)
 
 	// Escuchar en todas las interfaces del contenedor
 	addr := os.Getenv("HTTP_ADDR")
