@@ -61,9 +61,15 @@ func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Resu
 	recSvc := recommend.NewService(dispatchTrigger)
 	recHandler := recommend.NewHandler(recSvc)
 
-	// Register under /api/recomend and also at root /recomend
-	recHandler.RegisterRoutes(api.Group("/recomend"))
-	recHandler.RegisterRoutes(r.Group("/recomend"))
+	// Protected routes
+	protected := api.Group("/recomend")
+	protected.Use(auth.AuthMiddleware(tokenManager))
+	recHandler.RegisterRoutes(protected)
+
+	// Also expose protected /recomend at root
+	protectedRoot := r.Group("/recomend")
+	protectedRoot.Use(auth.AuthMiddleware(tokenManager))
+	recHandler.RegisterRoutes(protectedRoot)
 
 	// Escuchar en todas las interfaces del contenedor
 	addr := os.Getenv("HTTP_ADDR")

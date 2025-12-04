@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Film, User, LogOut, UserCircle } from 'lucide-react';
-import { 
-  Movie, 
-  fetchTrendingMovies, 
-  fetchTopRatedMovies, 
+import {
+  Movie,
+  fetchTrendingMovies,
+  fetchTopRatedMovies,
   fetchPopularMovies,
-  isApiKeyConfigured 
+  isApiKeyConfigured
 } from '../services/tmdb';
 import MovieCard from '../components/MovieCard';
 import ScrollableSection from '../components/ScrollableSection';
@@ -222,10 +222,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigateToProfile }) 
         <div style={styles.header}>
           <div style={styles.logo}>
             <Film size={32} />
-            <span style={styles.logoText}>MOVIEFLIX</span>
+            <span style={styles.logoText}>GoFlix</span>
           </div>
           <div style={styles.searchContainer}>
-            <SearchBar 
+            <SearchBar
               placeholder="Buscar películas..."
               onSearch={handleSearch}
               onQueryChange={(query) => {
@@ -272,11 +272,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigateToProfile }) 
       <div style={styles.header}>
         <div style={styles.logo}>
           <Film size={32} />
-          <span style={styles.logoText}>MOVIEFLIX</span>
+          <span style={styles.logoText}>GoFlix</span>
         </div>
-        
+
         <div style={styles.searchContainer}>
-          <SearchBar 
+          <SearchBar
             placeholder="Buscar películas..."
             onSearch={handleSearch}
             onQueryChange={(query) => {
@@ -332,45 +332,45 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigateToProfile }) 
       {/* Content */}
       <div style={styles.content}>
         {/* 1. Recommended Section */}
-        <ScrollableSection 
-          title="Recommended" 
+        <ScrollableSection
+          title="Recommended"
           sectionId="recommended-grid"
           size="large"
         >
           {recommendedMovies.map((movie) => (
-            <MovieCard 
-              key={movie.movieId} 
-              movie={movie} 
+            <MovieCard
+              key={movie.movieId}
+              movie={movie}
               size="large"
             />
           ))}
         </ScrollableSection>
 
         {/* 2. Top in IMDB Section */}
-        <ScrollableSection 
-          title="Top in IMDB" 
+        <ScrollableSection
+          title="Top in IMDB"
           sectionId="imdb-grid"
           size="small"
         >
           {topIMDBMovies.map((movie) => (
-            <MovieCard 
-              key={movie.movieId} 
-              movie={movie} 
+            <MovieCard
+              key={movie.movieId}
+              movie={movie}
               size="small"
             />
           ))}
         </ScrollableSection>
 
         {/* 3. Top in TMDB Section */}
-        <ScrollableSection 
-          title="Top in TMDB" 
+        <ScrollableSection
+          title="Top in TMDB"
           sectionId="tmdb-grid"
           size="small"
         >
           {topTMDbMovies.map((movie) => (
-            <MovieCard 
-              key={movie.movieId} 
-              movie={movie} 
+            <MovieCard
+              key={movie.movieId}
+              movie={movie}
               size="small"
             />
           ))}

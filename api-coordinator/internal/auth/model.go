@@ -38,4 +38,5 @@ type Service interface {
 // TokenManager abstrae la generación de tokens (JWT o lo que quieras).
 type TokenManager interface {
 	GenerateToken(userID string) (string, error)
+	ValidateToken(token string) (string, error)
 }

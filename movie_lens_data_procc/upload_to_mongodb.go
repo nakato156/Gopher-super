@@ -17,8 +17,10 @@ import (
 
 // UserRatingsDocument representa un documento de usuario en MongoDB
 type UserRatingsDocument struct {
-	UserID  int             `bson:"userId" json:"userId"`
-	Ratings map[int]float64 `bson:"ratings" json:"ratings"`
+	UserID   int             `bson:"userId" json:"userId"`
+	Email    string          `bson:"email" json:"email"`
+	Password string          `bson:"password" json:"password"`
+	Ratings  map[int]float64 `bson:"ratings" json:"ratings"`
 }
 
 // cargarMatrizDesdeJSON carga la matriz desde un archivo JSON
@@ -106,8 +108,10 @@ func cargarMatrizMongoDB(matriz map[int]map[int]float64, mongoURI, dbName, collN
 			continue
 		}
 		doc := UserRatingsDocument{
-			UserID:  userID,
-			Ratings: ratings,
+			UserID:   userID,
+			Email:    fmt.Sprintf("user%d@example.com", userID),
+			Password: fmt.Sprintf("User%d", userID),
+			Ratings:  ratings,
 		}
 		documents = append(documents, doc)
 	}
@@ -218,6 +222,8 @@ func main() {
 		fmt.Printf("\n   📄 Ejemplo de documento que se insertará:\n")
 		fmt.Printf("      {\n")
 		fmt.Printf("        \"userId\": %d,\n", userID)
+		fmt.Printf("        \"email\": \"user%d@example.com\",\n", userID)
+		fmt.Printf("        \"password\": \"User%d\",\n", userID)
 		fmt.Printf("        \"ratings\": {\n")
 		ratingCount := 0
 		for movieID, rating := range ratings {
@@ -257,6 +263,8 @@ func main() {
 	fmt.Printf("\n   📦 Estructura de cada documento:\n")
 	fmt.Printf("      {\n")
 	fmt.Printf("        \"userId\": <int>,           // ID del usuario\n")
+	fmt.Printf("        \"email\": <string>,         // Email del usuario\n")
+	fmt.Printf("        \"password\": <string>,      // Contraseña del usuario\n")
 	fmt.Printf("        \"ratings\": {              // Mapa de ratings normalizados\n")
 	fmt.Printf("          \"<movieId>\": <float>,   // MovieID -> Rating normalizado\n")
 	fmt.Printf("          ...\n")

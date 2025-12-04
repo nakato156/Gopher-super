@@ -109,12 +109,17 @@ func main() {
 	fmt.Println("📥 Leyendo archivo ratings.csv ...")
 
 	// Intentar diferentes rutas posibles
-	csvPath := "ml-32m/ratings.csv"
+	// Intentar diferentes rutas posibles
+	csvPath := "../dataset/ml-latest-small/ratings.csv"
 	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
-		// Intentar en el directorio padre
-		csvPath = "../ml-32m/ratings.csv"
+		// Intentar ruta local para desarrollo fuera de docker
+		csvPath = "ml-latest-small/ratings.csv"
 		if _, err := os.Stat(csvPath); os.IsNotExist(err) {
-			log.Fatal("Error: No se encontró ratings.csv en ml-32m/ ni en ../ml-32m/")
+			// Fallback original
+			csvPath = "ml-32m/ratings.csv"
+			if _, err := os.Stat(csvPath); os.IsNotExist(err) {
+				log.Fatal("Error: No se encontró ratings.csv en ../dataset/ml-latest-small/, ml-latest-small/ ni ml-32m/")
+			}
 		}
 	}
 

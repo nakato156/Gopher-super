@@ -27,10 +27,10 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
       const name = userEmail.split('@')[0];
       setUserName(name.charAt(0).toUpperCase() + name.slice(1));
     }
-    
+
     const date = getUserAccountDate();
     setAccountDate(date);
-    
+
     updateMovieList();
 
     // Escuchar cambios en localStorage (cuando se agregan/quitan películas)
@@ -39,7 +39,7 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
     };
 
     window.addEventListener('storage', handleStorageChange);
-    
+
     // También escuchar eventos personalizados si se usan
     const interval = setInterval(() => {
       updateMovieList();
@@ -54,7 +54,7 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
   // Calcular datos para el gráfico de pie (películas por género)
   const genrePieData = useMemo(() => {
     const genreCount: { [key: string]: number } = {};
-    
+
     userMovies.forEach(movie => {
       const genres = movie.genres.split('|').filter(g => g.trim() !== '');
       if (genres.length === 0) {
@@ -75,11 +75,11 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
   // Calcular datos para el gráfico de columnas (rating promedio por género)
   const genreRatingData = useMemo(() => {
     const genreRatings: { [key: string]: { total: number; count: number } } = {};
-    
+
     userMovies.forEach(movie => {
       const genres = movie.genres.split('|').filter(g => g.trim() !== '');
       const rating = movie.csvRating || movie.rating ? (movie.csvRating || (movie.rating! / 2)) : 0;
-      
+
       if (genres.length === 0) {
         if (!genreRatings['Unknown']) {
           genreRatings['Unknown'] = { total: 0, count: 0 };
@@ -326,10 +326,10 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
           {/* Nombre de la app */}
           <div style={styles.appName}>
             <Film size={32} />
-            <span>MOVIEFLIX</span>
+            <span>GoFlix</span>
           </div>
         </div>
-        
+
         {/* Sección de usuario (icono y nombre) */}
         <div style={styles.userSection}>
           <div style={styles.userIcon}>
@@ -416,9 +416,9 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      background: '#1a1825', 
+                  <Tooltip
+                    contentStyle={{
+                      background: '#1a1825',
                       border: '1px solid #2a2640',
                       borderRadius: '8px',
                       color: '#ffffff'
@@ -438,33 +438,33 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={genreRatingData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2a2640" />
-                  <XAxis 
-                    dataKey="name" 
+                  <XAxis
+                    dataKey="name"
                     stroke="#8b87a0"
                     tick={{ fill: '#8b87a0', fontSize: 12 }}
                     angle={-45}
                     textAnchor="end"
                     height={80}
                   />
-                  <YAxis 
+                  <YAxis
                     stroke="#8b87a0"
                     tick={{ fill: '#8b87a0', fontSize: 12 }}
                     domain={[0, 5]}
                   />
-                  <Tooltip 
-                    contentStyle={{ 
-                      background: '#1a1825', 
+                  <Tooltip
+                    contentStyle={{
+                      background: '#1a1825',
                       border: '1px solid #2a2640',
                       borderRadius: '8px',
                       color: '#ffffff'
                     }}
                     formatter={(value: number) => value.toFixed(2)}
                   />
-                  <Legend 
+                  <Legend
                     wrapperStyle={{ color: '#ffffff' }}
                   />
-                  <Bar 
-                    dataKey="rating" 
+                  <Bar
+                    dataKey="rating"
                     fill="#667eea"
                     radius={[8, 8, 0, 0]}
                   />
@@ -482,9 +482,9 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
           {userMovies.length > 0 ? (
             <div style={styles.moviesGrid}>
               {userMovies.map((movie) => (
-                <MovieCard 
-                  key={movie.movieId} 
-                  movie={movie} 
+                <MovieCard
+                  key={movie.movieId}
+                  movie={movie}
                   size="small"
                 />
               ))}
