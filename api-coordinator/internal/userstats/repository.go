@@ -23,8 +23,8 @@ type GenreStat struct {
 }
 
 type Repository interface {
-	GetMoviesSeen(ctx context.Context, userID int) ([]Movie, error)
-	GetTopGenres(ctx context.Context, userID int) ([]GenreStat, error)
+	GetMoviesSeen(ctx context.Context, userID string) ([]Movie, error)
+	GetTopGenres(ctx context.Context, userID string) ([]GenreStat, error)
 }
 
 type MongoRepository struct {
@@ -39,14 +39,14 @@ func NewMongoRepository(moviesColl, ratingsColl *mongo.Collection) *MongoReposit
 	}
 }
 
-func (r *MongoRepository) GetMoviesSeen(ctx context.Context, userID int) ([]Movie, error) {
+func (r *MongoRepository) GetMoviesSeen(ctx context.Context, userID string) ([]Movie, error) {
 	// 1. Find user ratings
 	var userDoc struct {
-		UserID  int                `bson:"userid"`
-		Ratings map[string]float64 `bson:"ratigings"`
+		UserID  string             `bson:"userId"`
+		Ratings map[string]float64 `bson:"ratings"`
 	}
 
-	err := r.ratingsColl.FindOne(ctx, bson.M{"userid": userID}).Decode(&userDoc)
+	err := r.ratingsColl.FindOne(ctx, bson.M{"userId": userID}).Decode(&userDoc)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return []Movie{}, nil
@@ -91,7 +91,7 @@ func (r *MongoRepository) GetMoviesSeen(ctx context.Context, userID int) ([]Movi
 	return movies, nil
 }
 
-func (r *MongoRepository) GetTopGenres(ctx context.Context, userID int) ([]GenreStat, error) {
+func (r *MongoRepository) GetTopGenres(ctx context.Context, userID string) ([]GenreStat, error) {
 	movies, err := r.GetMoviesSeen(ctx, userID)
 	if err != nil {
 		return nil, err

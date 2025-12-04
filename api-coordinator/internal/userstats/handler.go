@@ -2,7 +2,6 @@ package userstats
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,10 +20,9 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 func (h *Handler) GetMoviesSeen(c *gin.Context) {
-	userIDStr := c.GetString("user_id")
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
+	userID := c.GetString("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user id not found in context"})
 		return
 	}
 
@@ -38,10 +36,9 @@ func (h *Handler) GetMoviesSeen(c *gin.Context) {
 }
 
 func (h *Handler) GetTopGenres(c *gin.Context) {
-	userIDStr := c.GetString("user_id")
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
+	userID := c.GetString("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user id not found in context"})
 		return
 	}
 
