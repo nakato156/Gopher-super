@@ -1,0 +1,45 @@
+[33m0409ce7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m fix: fix types in stats service
+[33mdde3552[m fix: fix user schema in mongo
+[33me400983[m middlewares
+[33m2fa410f[m frontend in docker
+[33m35827a5[m minor changes
+[33md4691b9[m docker compose for mongo + scripts for data upload
+[33m217f7dd[m implement read mongo data in atlas
+[33m242ee02[m Merge branch 'main' of https://github.com/nakato156/Gopher-super
+[33mbcfd8e3[m matrix upload component
+[33md68856f[m fix: replace mock to real cosim
+[33m544346d[m impl hrttp coenctado con recomendacionD
+[33m93e94c9[m añadir endpoint /recomend y exponer /login /register
+[33m9b5d27b[m feat: dispatcher listo
+[33mbd27b38[m refactor code for recomendation system
+[33m4e1b709[m mejora simioitud y benchmark
+[33m334f864[m recomendation system implemeted
+[33mc205bc4[m fix: fix mongo conection
+[33m9ac231a[m Create Readme.md
+[33m393bd1e[m Implementación de análisis de datos y normalización de ratings en Go y Python
+[33m8db6454[m refactor: refactor code for http server
+[33m26f06d4[m implement mongo service and heartbeat monitoring
+[33mc281729[m redis implementado
+[33mce89946[m Generación de matriz usuario-película
+[33m16f38eb[m user dashboard
+[33mc064142[m full frontend and data cleaning and processing
+[33m3eeefe3[m client tcp with handshake
+[33me21099d[m BREAKING: refactor and tcp server complete
+[33mcac5ff6[m add sequential model
+[33m1beac4a[m Add analysis plots
+[33mb90fb59[m Analisis goroutines
+[33m70dfe48[m quick changs
+[33m8f1c690[m change pearson to cosine simi
+[33m89cea0d[m better formulas
+[33mec12ecf[m pearson motor recomendation workoing
+[33m1eda0f1[m quick fix
+[33m9d25b84[m better gitignore
+[33m08a92af[m recomendation motor based on pearson concurrent
+[33mfa1419a[m Merge branch 'main' of https://github.com/nakato156/Gopher-super
+[33m43253bd[m gitigonre
+[33m06c2d32[m delete folder
+[33mc286759[m refactor code
+[33m7d8fb1b[m implementado de jaccard y cosine
+[33m0945704[m fix similarity
+[33mafdc621[m pearson algo
+[33m6cb739b[m first commit

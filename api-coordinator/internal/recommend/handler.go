@@ -4,6 +4,7 @@ import (
 	"goflix/pkg/types"
 	"net/http"
 	"sort"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,6 +22,24 @@ func NewHandler(svc Service) *Handler {
 // exposes POST /recomend
 func (h *Handler) RegisterRoutes(g *gin.RouterGroup) {
 	g.POST("", h.Recommend)
+	g.GET("/popular", h.GetPopularMovies)
+}
+
+func (h *Handler) GetPopularMovies(c *gin.Context) {
+	topN := 10
+	if nStr := c.Query("top_n"); nStr != "" {
+		if n, err := strconv.Atoi(nStr); err == nil && n > 0 {
+			topN = n
+		}
+	}
+
+	movies, err := h.svc.GetPopularMovies(c.Request.Context(), topN)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "error fetching popular movies"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"movies": movies})
 }
 
 type recommendRequest struct {

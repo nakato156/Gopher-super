@@ -61,11 +61,7 @@ func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Resu
 	// Also expose auth routes at root so /login and /register are available
 	handler.RegisterRoutes(r.Group("/"))
 
-	// Register recommend routes (mock service initially)
-	recSvc := recommend.NewService(dispatchTrigger)
-	recHandler := recommend.NewHandler(recSvc)
-
-	// User Stats
+	// Collections
 	moviesCollName := "movies"
 	ratingsCollName := os.Getenv("MONGO_COLL_NAME")
 	if ratingsCollName == "" {
@@ -74,6 +70,12 @@ func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Resu
 	moviesColl := mongoClient.GetCollection(dbName, moviesCollName)
 	ratingsColl := mongoClient.GetCollection(dbName, ratingsCollName)
 
+	// Register recommend routes
+	recRepo := recommend.NewMongoRepository(moviesColl, ratingsColl)
+	recSvc := recommend.NewService(dispatchTrigger, recRepo)
+	recHandler := recommend.NewHandler(recSvc)
+
+	// User Stats
 	userStatsRepo := userstats.NewMongoRepository(moviesColl, ratingsColl)
 	userStatsSvc := userstats.NewService(userStatsRepo)
 	userStatsHandler := userstats.NewHandler(userStatsSvc)
