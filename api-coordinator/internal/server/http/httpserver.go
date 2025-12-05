@@ -32,7 +32,10 @@ func NewRouter(ctx context.Context, dispatchTrigger func(int, int) ([]types.Resu
 
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
-	r.Use(cors.Default())
+	config := cors.DefaultConfig()
+	config.AllowAllOrigins = true
+	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
+	r.Use(cors.New(config))
 
 	mongoClient := connectMongoWithRetry(ctx)
 	if mongoClient == nil {

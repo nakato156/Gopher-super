@@ -18,6 +18,7 @@ type Movie struct {
 
 type Repository interface {
 	GetPopularMovies(ctx context.Context, topN int) ([]Movie, error)
+	GetMoviesByIDs(ctx context.Context, movieIDs []int) ([]Movie, error)
 }
 
 type MongoRepository struct {
@@ -87,6 +88,25 @@ func (r *MongoRepository) GetPopularMovies(ctx context.Context, topN int) ([]Mov
 	var movies []Movie
 	if err := cursor.All(ctx, &movies); err != nil {
 		return nil, fmt.Errorf("decoding popular movies: %w", err)
+	}
+
+	return movies, nil
+}
+
+func (r *MongoRepository) GetMoviesByIDs(ctx context.Context, movieIDs []int) ([]Movie, error) {
+	if len(movieIDs) == 0 {
+		return []Movie{}, nil
+	}
+
+	cursor, err := r.moviesColl.Find(ctx, bson.M{"movieId": bson.M{"$in": movieIDs}})
+	if err != nil {
+		return nil, fmt.Errorf("finding movies by IDs: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var movies []Movie
+	if err := cursor.All(ctx, &movies); err != nil {
+		return nil, fmt.Errorf("decoding movies: %w", err)
 	}
 
 	return movies, nil

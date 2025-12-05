@@ -2,11 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Film, User, LogOut, UserCircle } from 'lucide-react';
 import {
   Movie,
-  fetchTrendingMovies,
-  fetchTopRatedMovies,
-  fetchPopularMovies,
-  isApiKeyConfigured
 } from '../services/tmdb';
+import { getRecommendations, getPopularMovies } from '../services/recommendations';
 import MovieCard from '../components/MovieCard';
 import ScrollableSection from '../components/ScrollableSection';
 import SearchBar from '../components/SearchBar';
@@ -21,7 +18,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigateToProfile }) => {
   const [recommendedMovies, setRecommendedMovies] = useState<Movie[]>([]);
   const [topIMDBMovies, setTopIMDBMovies] = useState<Movie[]>([]);
-  const [topTMDbMovies, setTopTMDbMovies] = useState<Movie[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [userName, setUserName] = useState<string>('Usuario');
   const [searchResults, setSearchResults] = useState<MovieSearchResult[]>([]);
@@ -87,25 +84,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigateToProfile }) 
     }
   };
 
-  // Cargar todos los datos de TMDB
+  // Cargar datos
   useEffect(() => {
     const loadAllMovies = async () => {
       setIsLoading(true);
       try {
-        if (isApiKeyConfigured()) {
-          const [trending, topRated, popular] = await Promise.all([
-            fetchTrendingMovies(),
-            fetchTopRatedMovies(),
-            fetchPopularMovies(),
-          ]);
+        // Cargar recomendaciones y populares del backend
+        const [recommendations, popular] = await Promise.all([
+          getRecommendations(10),
+          getPopularMovies(10)
+        ]);
 
-          // Los ratings ya vienen normalizados de TMDB en csvRating
-          setRecommendedMovies(trending);
-          setTopIMDBMovies(topRated);
-          setTopTMDbMovies(popular);
-        } else {
-          console.warn('TMDB API Key no configurada. Por favor, configura VITE_TMDB_API_KEY en tu archivo .env');
-        }
+        setRecommendedMovies(recommendations);
+        setTopIMDBMovies(popular); // "Top 10 mundial" usa /api/recomend/popular
+
+
       } catch (error) {
         console.error('Error loading movies:', error);
       } finally {
@@ -348,7 +341,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigateToProfile }) 
 
         {/* 2. Top in IMDB Section */}
         <ScrollableSection
-          title="Top in IMDB"
+          title="Top 10 mundial"
           sectionId="imdb-grid"
           size="small"
         >
@@ -361,20 +354,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, onNavigateToProfile }) 
           ))}
         </ScrollableSection>
 
-        {/* 3. Top in TMDB Section */}
-        <ScrollableSection
-          title="Top in TMDB"
-          sectionId="tmdb-grid"
-          size="small"
-        >
-          {topTMDbMovies.map((movie) => (
-            <MovieCard
-              key={movie.movieId}
-              movie={movie}
-              size="small"
-            />
-          ))}
-        </ScrollableSection>
+
       </div>
 
       {/* Search Results Modal */}

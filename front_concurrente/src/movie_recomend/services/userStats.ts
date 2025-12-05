@@ -34,7 +34,8 @@ export const getUserMoviesSeen = async (): Promise<Movie[]> => {
         // Let's check frontend Movie interface in tmdb.ts
         return data.map((m: any) => ({
             ...m,
-            genres: Array.isArray(m.genres) ? m.genres.join('|') : m.genres
+            genres: Array.isArray(m.genres) ? m.genres.join('|') : m.genres,
+            csvRating: m.rating // Map backend rating to frontend csvRating for display
         }));
     } catch (error) {
         console.error('Error fetching user movies:', error);

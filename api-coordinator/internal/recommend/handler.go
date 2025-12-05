@@ -1,7 +1,6 @@
 package recommend
 
 import (
-	"goflix/pkg/types"
 	"net/http"
 	"sort"
 	"strconv"
@@ -48,28 +47,37 @@ type recommendRequest struct {
 }
 
 func (h *Handler) Recommend(c *gin.Context) {
-	var req recommendRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "payload inválido"})
+	userIDStr := c.GetString("user_id")
+	if userIDStr == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user id not found in context"})
 		return
 	}
+
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
+		return
+	}
+
+	var req recommendRequest
+	// Optional: still bind for TopN if provided, but ignore UserID in body
+	if err := c.ShouldBindJSON(&req); err == nil {
+		// If body is present, use TopN from it
+	}
+
 	if req.TopN <= 0 {
 		req.TopN = 10
 	}
-	results, err := h.svc.RecommendForUser(req.UserID, req.TopN)
+
+	recommendations, err := h.svc.GetRecommendationsWithDetails(c.Request.Context(), userID, req.TopN)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "error al calcular recomendaciones"})
 		return
 	}
 
-	recommendations := make([]types.Neighbor, 0)
-	for _, res := range results {
-		recommendations = append(recommendations, res.Neighbors...)
-	}
-
 	// sort values
 	sort.Slice(recommendations, func(i, j int) bool {
-		return recommendations[i].Similarity > recommendations[j].Similarity
+		return recommendations[i].Score > recommendations[j].Score
 	})
 
 	c.JSON(http.StatusOK, gin.H{"recommendations": recommendations})
